@@ -101,10 +101,6 @@ def init_db():
         " TEXT UNIQUE, password TEXT, app_token TEXT, status TEXT, hwid TEXT,"
         " created_at TEXT)"
     )
-    cur.execute(
-        "CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY, app_token TEXT,"
-        " username TEXT, action TEXT, ip TEXT, timestamp TEXT)"
-    )
     con.commit()
     con.close()
 
@@ -119,29 +115,22 @@ def db(query, params=(), fetch=False):
     con.close()
     return data
 
-def log_event(app_token, username, action):
-    ip = request.remote_addr
-    db("INSERT INTO logs (app_token, username, action, ip, timestamp) VALUES (?,?,?,?,?)",
-       (app_token, username, action, ip, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-
 # ----------------- TEMPLATES & STYLES ----------------- #
 COMMON_HEAD = """
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  body { background: #030712; cursor: none; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+  body { background: #060810; cursor: none; }
   #c { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
-  .glass { backdrop-filter: blur(25px); background: rgba(10, 15, 30, 0.75); border: 1px solid rgba(56, 189, 248, 0.15); }
-  .glass-card { background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(56, 189, 248, 0.12); backdrop-filter: blur(16px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-  .glass-card:hover { border-color: rgba(56, 189, 248, 0.4); transform: translateY(-2px); box-shadow: 0 10px 30px -10px rgba(56,189,248,0.2); }
+  .glass { backdrop-filter: blur(20px); background: rgba(13, 16, 28, 0.75); border: 1px solid rgba(34, 211, 238, 0.15); }
+  .glass-card { background: rgba(15, 20, 35, 0.65); border: 1px solid rgba(34, 211, 238, 0.12); backdrop-filter: blur(12px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .glass-card:hover { border-color: rgba(34, 211, 238, 0.4); transform: translateY(-3px); box-shadow: 0 10px 30px -10px rgba(34,211,238,0.25); }
   
-  /* STYLISH CROSSHAIR + ORBIT CURSOR ANIMATION */
-  #cursor-dot { position: fixed; width: 6px; height: 6px; background: #38bdf8; border-radius: 50%; pointer-events: none; z-index: 9999; transform: translate(-50%, -50%); box-shadow: 0 0 12px #38bdf8, 0 0 24px #38bdf8; }
-  #cursor-crosshair { position: fixed; width: 26px; height: 26px; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 50%; pointer-events: none; z-index: 9998; transform: translate(-50%, -50%); transition: width 0.2s, height 0.2s, border-color 0.2s; }
-  #cursor-crosshair::before, #cursor-crosshair::after { content: ''; position: absolute; background: rgba(56, 189, 248, 0.8); }
-  #cursor-crosshair::before { top: 50%; left: -5px; width: 36px; height: 1px; transform: translateY(-50%); }
-  #cursor-crosshair::after { left: 50%; top: -5px; height: 36px; width: 1px; transform: translateX(-50%); }
-  
-  #cursor-orbit { position: fixed; width: 48px; height: 48px; border: 1px dashed rgba(99, 102, 241, 0.6); border-radius: 50%; pointer-events: none; z-index: 9997; transform: translate(-50%, -50%); animation: spinOrbit 8s linear infinite; }
+  /* STYLISH NEON CROSSHAIR & ORBIT CURSOR */
+  #cursor-dot { position: fixed; width: 6px; height: 6px; background: #22d3ee; border-radius: 50%; pointer-events: none; z-index: 9999; transform: translate(-50%, -50%); box-shadow: 0 0 10px #22d3ee, 0 0 20px #22d3ee; }
+  #cursor-crosshair { position: fixed; width: 28px; height: 28px; border: 1px solid rgba(34, 211, 238, 0.5); border-radius: 50%; pointer-events: none; z-index: 9998; transform: translate(-50%, -50%); transition: width 0.2s, height 0.2s, border-color 0.2s; }
+  #cursor-crosshair::before { content: ''; position: absolute; top: 50%; left: -4px; width: 34px; height: 1px; background: rgba(34, 211, 238, 0.6); transform: translateY(-50%); }
+  #cursor-crosshair::after { content: ''; position: absolute; left: 50%; top: -4px; height: 34px; width: 1px; background: rgba(34, 211, 238, 0.6); transform: translateX(-50%); }
+  #cursor-orbit { position: fixed; width: 46px; height: 46px; border: 1px dashed rgba(99, 102, 241, 0.5); border-radius: 50%; pointer-events: none; z-index: 9997; transform: translate(-50%, -50%); animation: spinOrbit 6s linear infinite; }
   @keyframes spinOrbit { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
 </style>
 """
@@ -164,8 +153,8 @@ CURSOR_SCRIPT = """
   });
 
   function renderCursor() {
-    cx += (mx - cx) * 0.2;
-    cy += (my - cy) * 0.2;
+    cx += (mx - cx) * 0.18;
+    cy += (my - cy) * 0.18;
     cross.style.left = cx + 'px';
     cross.style.top = cy + 'px';
     orbit.style.left = cx + 'px';
@@ -178,18 +167,26 @@ CURSOR_SCRIPT = """
   function R(){ c.width = innerWidth; c.height = innerHeight; }
   R(); onresize = R;
   let p = [];
-  for(let i=0; i<90; i++) p.push({ x: Math.random()*c.width, y: Math.random()*c.height, r: Math.random()*1.5+0.5, vy: Math.random()*0.5+0.2, opacity: Math.random()*0.6+0.2 });
+  for(let i=0; i<100; i++) p.push({ x: Math.random()*c.width, y: Math.random()*c.height, r: Math.random()*1.8+0.6, vy: Math.random()*0.7+0.2, opacity: Math.random()*0.7+0.3 });
+  
+  window.addEventListener('mousemove', (e) => {
+    if(Math.random() > 0.4) {
+      p.push({ x: e.clientX, y: e.clientY, r: Math.random()*2.5+1, vy: -(Math.random()*1.5+0.5), opacity: 1 });
+      if(p.length > 130) p.shift();
+    }
+  });
 
   function A(){
     x.clearRect(0, 0, c.width, c.height);
     p.forEach(o => {
       o.y -= o.vy;
-      if(o.y < 0){ o.y = c.height; o.x = Math.random()*c.width; }
+      if(o.opacity > 0.3) o.opacity -= 0.005;
+      if(o.y < 0){ o.y = c.height; o.x = Math.random()*c.width; o.opacity = Math.random()*0.7+0.3; }
       x.beginPath();
       x.arc(o.x, o.y, o.r, 0, 6.28);
-      x.fillStyle = `rgba(56, 189, 248, ${o.opacity})`;
-      x.shadowBlur = 10;
-      x.shadowColor = '#38bdf8';
+      x.fillStyle = `rgba(34, 211, 238, ${o.opacity})`;
+      x.shadowBlur = 12;
+      x.shadowColor = '#22d3ee';
       x.fill();
     });
     requestAnimationFrame(A);
@@ -199,31 +196,52 @@ CURSOR_SCRIPT = """
 """
 
 LANDING = """<!DOCTYPE html><html><head>""" + COMMON_HEAD + """</head><body class="text-white overflow-x-hidden relative"><canvas id="c"></canvas>
-<nav class="relative z-10 flex justify-between items-center px-8 py-4 bg-black/50 backdrop-blur-md border-b border-sky-500/10">
+<nav class="relative z-10 flex justify-between items-center px-8 py-4 bg-black/40 backdrop-blur-md border-b border-cyan-500/10">
   <div class="flex items-center gap-3">
-    <div class="w-9 h-9 bg-gradient-to-r from-sky-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_#38bdf8]">🛡️</div>
-    <div><p class="font-black text-sm tracking-wider">HSL CORP</p><p class="text-[9px] text-sky-400 font-bold tracking-widest">KEYAUTH STYLE AUTHENTICATION SYSTEM</p></div>
+    <div class="w-9 h-9 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_#22d3ee]">👾</div>
+    <div><p class="font-black text-sm tracking-wider">HSL CORP</p><p class="text-[9px] text-cyan-400 font-bold tracking-widest">NEXT-GEN SOFTWARE PROTECTION</p></div>
   </div>
   <div class="flex gap-3">
     <a href="/login" class="bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-700 px-5 py-2 rounded-full text-xs font-semibold transition">Sign In</a>
-    <a href="/login" class="bg-gradient-to-r from-sky-400 to-indigo-600 hover:opacity-90 px-5 py-2 rounded-full text-xs font-bold shadow-[0_0_20px_rgba(56,189,248,0.5)] transition">Dashboard</a>
+    <a href="/login" class="bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 px-5 py-2 rounded-full text-xs font-bold shadow-[0_0_20px_rgba(34,211,238,0.5)] transition">Create Account</a>
   </div>
 </nav>
 
 <div class="relative z-10 flex flex-col items-center text-center pt-24 px-4">
-  <div class="inline-block border border-sky-500/30 bg-sky-500/10 px-4 py-1.5 rounded-full text-xs text-sky-300 font-semibold mb-6 shadow-[0_0_15px_rgba(56,189,248,0.2)]">⚡ Next-Gen Secure Software Panel</div>
-  <h1 class="text-6xl md:text-7xl font-black bg-gradient-to-r from-sky-300 via-cyan-400 to-indigo-500 bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(56,189,248,0.4)] max-w-4xl leading-tight">HSL CORP AUTH</h1>
-  <p class="text-zinc-400 mt-5 font-medium text-base max-w-xl">Ultimate Hardware-Locked Licensing & Application Protection Infrastructure.</p>
-  <a href="/login" class="bg-gradient-to-r from-sky-400 to-indigo-600 hover:scale-105 px-8 py-3.5 rounded-2xl text-sm font-bold shadow-[0_0_30px_rgba(56,189,248,0.6)] mt-8 transition duration-300">🚀 Get Started</a>
+  <div class="inline-block border border-cyan-500/30 bg-cyan-500/10 px-4 py-1.5 rounded-full text-xs text-cyan-300 font-semibold mb-6 shadow-[0_0_15px_rgba(34,211,238,0.2)]">⚡ Encrypted Anti-Crack Infrastructure</div>
+  <h1 class="text-6xl md:text-7xl font-black bg-gradient-to-r from-cyan-300 via-cyan-400 to-indigo-500 bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(34,211,238,0.4)] max-w-4xl leading-tight">HSL CORP AUTH</h1>
+  <p class="text-zinc-400 mt-5 font-medium text-base max-w-xl">Ultimate Hardware-Locked Authentication & Anti-Bypass Protection Engine.</p>
+  <a href="/login" class="bg-gradient-to-r from-cyan-400 to-indigo-600 hover:scale-105 px-8 py-3.5 rounded-2xl text-sm font-bold shadow-[0_0_30px_rgba(34,211,238,0.6)] mt-8 transition duration-300">🚀 Secure Access Portal</a>
+
+  <div class="mt-28 w-full max-w-5xl px-6 pb-20">
+    <p class="font-black text-xl text-left tracking-wide text-zinc-200">Hardened Features</p>
+    <div class="grid md:grid-cols-3 gap-6 mt-6 text-left">
+      <div class="glass-card rounded-2xl p-6">
+        <p class="text-2xl">🔒</p>
+        <p class="font-bold text-base mt-3 text-cyan-300">Hardware-Bound Verification</p>
+        <p class="text-xs text-zinc-400 mt-1">Binds authentication states directly with unique motherboard hardware hashes.</p>
+      </div>
+      <div class="glass-card rounded-2xl p-6">
+        <p class="text-2xl">🛡️</p>
+        <p class="font-bold text-base mt-3 text-indigo-300">Rate Limiting Protection</p>
+        <p class="text-xs text-zinc-400 mt-1">Automatic brute-force mitigation layer blocking dictionary & credential stuffing attacks.</p>
+      </div>
+      <div class="glass-card rounded-2xl p-6">
+        <p class="text-2xl">🤖</p>
+        <p class="font-bold text-base mt-3 text-cyan-300">HMAC Dynamic Session Check</p>
+        <p class="text-xs text-zinc-400 mt-1">Protects against API response spoofing and HTTP debug tool manipulations.</p>
+      </div>
+    </div>
+  </div>
 </div>
 """ + CURSOR_SCRIPT + """
 </body></html>"""
 
 LOGIN = """<!DOCTYPE html><html><head>""" + COMMON_HEAD + """</head><body class="flex items-center justify-center h-screen overflow-hidden relative"><canvas id="c"></canvas>
-<div class="relative z-10 w-[420px] glass rounded-[28px] p-9 text-center shadow-[0_0_60px_rgba(56,189,248,0.2)]">
-  <div class="w-16 h-16 bg-gradient-to-r from-sky-400 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_25px_#38bdf8]">🛡️</div>
-  <h1 class="font-black text-2xl mt-5 text-white bg-gradient-to-r from-sky-300 to-indigo-400 bg-clip-text text-transparent">HSL CORP AUTH</h1>
-  <p class="text-xs text-zinc-400 mt-1">Secure OAuth Sign-In Portal</p>
+<div class="relative z-10 w-[420px] glass rounded-[28px] p-9 text-center shadow-[0_0_60px_rgba(34,211,238,0.2)]">
+  <div class="w-16 h-16 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_25px_#22d3ee]">👾</div>
+  <h1 class="font-black text-2xl mt-5 text-white bg-gradient-to-r from-cyan-300 to-indigo-400 bg-clip-text text-transparent">HSL CORP</h1>
+  <p class="text-xs text-zinc-400 mt-1">Sign in using verified OAuth endpoints</p>
   <a href="/auth/google" class="mt-8 w-full bg-white hover:bg-zinc-100 text-black rounded-xl py-3.5 flex justify-center items-center gap-3 font-bold text-sm shadow-lg hover:scale-[1.02] transition">
     <img src="https://www.svgrepo.com/show/475656/google-color.svg" width=20> Continue with Google
   </a>
@@ -233,15 +251,15 @@ LOGIN = """<!DOCTYPE html><html><head>""" + COMMON_HEAD + """</head><body class=
 
 DASHBOARD_HTML = """<!DOCTYPE html><html><head>""" + COMMON_HEAD + """
 <style>
-  .side-active{ background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.4); color: #38bdf8 !important; font-weight: bold; }
+  .side-active{ background: rgba(34,211,238,0.15); border: 1px solid rgba(34,211,238,0.4); color: #22d3ee !important; font-weight: bold; }
 </style>
 </head>
 <body class="flex h-screen text-white overflow-hidden relative"><canvas id="c"></canvas>
 
 <div class="w-[260px] bg-black/80 backdrop-blur-xl border-r border-white/10 flex flex-col relative z-10">
   <div class="p-5 flex items-center gap-3 border-b border-white/10">
-    <div class="w-9 h-9 bg-gradient-to-r from-sky-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_12px_#38bdf8]">🛡️</div>
-    <div><p class="font-black text-sm tracking-wide">HSL CORP</p><p class="text-[9px] text-sky-400 font-bold">KeyAuth Console</p></div>
+    <div class="w-9 h-9 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_12px_#22d3ee]">👾</div>
+    <div><p class="font-black text-sm tracking-wide">HSL CORP</p><p class="text-[9px] text-cyan-400 font-bold">Developer Console</p></div>
   </div>
   
   <div class="p-3 space-y-1 text-xs" id="sidebar">
@@ -249,65 +267,51 @@ DASHBOARD_HTML = """<!DOCTYPE html><html><head>""" + COMMON_HEAD + """
     <button onclick="showTab('applications')" id="btn-applications" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">📦 Applications</button>
     <button onclick="showTab('tool_users')" id="btn-tool_users" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">👤 Users ({{tool_user_count}}/{{limit_text}})</button>
     <button onclick="showTab('keys')" id="btn-keys" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔑 License Keys</button>
-    <button onclick="showTab('logs')" id="btn-logs" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">📜 Session Audit Logs</button>
-    <button onclick="showTab('integrate')" id="btn-integrate" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔌 Integration Code</button>
+    <button onclick="showTab('integrate')" id="btn-integrate" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔌 Anti-Crack Integration</button>
     <button onclick="showTab('billing')" id="btn-billing" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">💎 Billing / Upgrade</button>
   </div>
   
   <div class="mt-auto p-4 border-t border-white/10 flex items-center gap-3 bg-black/40">
-    <img src="https://ui-avatars.com/api/?name={{name}}&background=38bdf8&color=fff" class="w-8 h-8 rounded-full border border-sky-400/40">
+    <img src="https://ui-avatars.com/api/?name={{name}}&background=22d3ee&color=fff" class="w-8 h-8 rounded-full border border-cyan-400/40">
     <div><p class="text-[11px] font-bold truncate w-[110px]">{{email}}</p><p class="text-[9px] {{plan_color}} font-bold">{{plan_text}}</p></div>
     <a href="/logout" class="ml-auto text-[11px] text-red-400 hover:text-red-300 font-semibold">Logout</a>
   </div>
 </div>
 
 <div class="flex-1 overflow-y-auto relative z-10">
-  <div class="h-14 bg-black/50 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-8">
-    <div class="flex items-center gap-4 text-xs font-semibold text-sky-300">
-      <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> KeyAuth Status: Operational</span>
-      <span class="text-zinc-600">|</span>
-      <span>API Ping: <span class="text-emerald-400">18ms</span></span>
-    </div>
-    <button onclick="showTab('billing')" class="text-xs bg-gradient-to-r from-sky-400 to-indigo-600 hover:opacity-90 text-white px-5 py-2 rounded-full font-bold shadow-[0_0_15px_rgba(56,189,248,0.4)] transition">Upgrade to Unlimited</button>
+  <div class="h-14 bg-black/40 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-8">
+    <p class="text-xs font-semibold tracking-wider text-cyan-300">HSL CONSOLE - {{plan_text}} PLAN</p>
+    <button onclick="showTab('billing')" class="text-xs bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 text-white px-5 py-2 rounded-full font-bold shadow-[0_0_15px_rgba(34,211,238,0.4)] transition">Upgrade to Unlimited</button>
   </div>
   
   <div class="p-8">
     <div id="tab-overview">
-      <h1 class="text-2xl font-black">Dashboard Analytics</h1>
-      <div class="mt-6 grid grid-cols-4 gap-4">
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-sky-400 tracking-wider">TOTAL USERS</p><p class="text-2xl font-black mt-2">{{tool_user_count}}</p></div>
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-emerald-400 tracking-wider">HWID BOUND</p><p class="text-2xl font-black mt-2">{{hwid_bound_count}}</p></div>
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-rose-400 tracking-wider">BANNED USERS</p><p class="text-2xl font-black mt-2">{{banned_count}}</p></div>
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-indigo-400 tracking-wider">TOTAL KEYS</p><p class="text-2xl font-black mt-2">{{keys_count}}</p></div>
-      </div>
-
+      <h1 class="text-2xl font-black">Dashboard Overview</h1>
       <div class="mt-6 grid grid-cols-[1.3fr_1fr_0.7fr] gap-4">
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-sky-400 tracking-wider">ACTIVE APPLICATION</p><select id="appSelect" onchange="selectApp(this.value)" class="bg-black/80 border border-white/20 rounded-xl px-3 py-2.5 text-xs mt-3 w-full font-semibold focus:outline-none focus:border-sky-400">{{app_options}}</select></div>
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-zinc-400 tracking-wider">MASTER APP TOKEN</p><div class="mt-3 flex justify-between items-center bg-black/80 rounded-xl px-3 py-2 border border-white/10"><p id="tokenDisplay" class="text-xs font-mono text-zinc-300 truncate">{{active_token}}</p><button onclick="copyToken()" class="text-[10px] bg-gradient-to-r from-sky-400 to-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:scale-105 transition">Copy</button></div></div>
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-zinc-400 tracking-wider">PLAN LIMIT</p><p class="text-xs font-bold mt-3">{{tool_user_count}} / {{limit_text}} Used</p><div class="w-full bg-zinc-800 h-2 mt-3 rounded-full overflow-hidden"><div class="bg-gradient-to-r from-sky-400 to-indigo-600 h-2 rounded-full" style="width:{{percent}}%"></div></div></div>
+        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-cyan-400 tracking-wider">ACTIVE APPLICATION</p><select id="appSelect" onchange="selectApp(this.value)" class="bg-black/80 border border-white/20 rounded-xl px-3 py-2.5 text-xs mt-3 w-full font-semibold focus:outline-none focus:border-cyan-400">{{app_options}}</select></div>
+        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-zinc-400 tracking-wider">MASTER APP TOKEN</p><div class="mt-3 flex justify-between items-center bg-black/80 rounded-xl px-3 py-2 border border-white/10"><p id="tokenDisplay" class="text-xs font-mono text-zinc-300 truncate">{{active_token}}</p><button onclick="copyToken()" class="text-[10px] bg-gradient-to-r from-cyan-400 to-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:scale-105 transition">Copy</button></div></div>
+        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-zinc-400 tracking-wider">PLAN LIMIT</p><p class="text-xs font-bold mt-3">{{tool_user_count}} / {{limit_text}} Used</p><div class="w-full bg-zinc-800 h-2 mt-3 rounded-full overflow-hidden"><div class="bg-gradient-to-r from-cyan-400 to-indigo-600 h-2 rounded-full" style="width:{{percent}}%"></div></div></div>
       </div>
       
       <div class="mt-6 glass-card rounded-2xl p-7">
         <p class="text-base font-bold text-white">+ Create New Secure User</p>
         <div class="flex gap-3 mt-4">
-          <input id="newUsername" placeholder="Username" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sky-400">
-          <input id="newPassword" placeholder="Password" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sky-400">
+          <input id="newUsername" placeholder="Username" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
+          <input id="newPassword" placeholder="Password" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
         </div>
-        <button onclick="createUser()" class="mt-4 w-full bg-gradient-to-r from-sky-400 to-indigo-600 hover:opacity-90 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(56,189,248,0.4)] transition">Create User</button>
+        <button onclick="createUser()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create User</button>
       </div>
     </div>
 
-    <div id="tab-applications" class="hidden"><h1 class="text-2xl font-black">Applications</h1><div class="glass-card mt-6 rounded-2xl p-7"><div class="space-y-3 mb-6">{{app_list_html}}</div><div class="border-t border-white/10 pt-5"><p class="text-base font-bold">+ Create New App</p><input id="newAppName" placeholder="App Name" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sky-400"><button onclick="createApp()" class="mt-4 w-full bg-gradient-to-r from-sky-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(56,189,248,0.4)] transition">Create Application</button></div></div></div>
+    <div id="tab-applications" class="hidden"><h1 class="text-2xl font-black">Applications</h1><div class="glass-card mt-6 rounded-2xl p-7"><div class="space-y-3 mb-6">{{app_list_html}}</div><div class="border-t border-white/10 pt-5"><p class="text-base font-bold">+ Create New App</p><input id="newAppName" placeholder="App Name" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"><button onclick="createApp()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create Application</button></div></div></div>
 
-    <div id="tab-tool_users" class="hidden"><h1 class="text-2xl font-black">Registered Users ({{tool_user_count}}/{{limit_text}})</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{tool_users_list_html}}</div></div></div>
+    <div id="tab-tool_users" class="hidden"><h1 class="text-2xl font-black">Username / Pass Users ({{tool_user_count}}/{{limit_text}})</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{tool_users_list_html}}</div></div></div>
 
     <div id="tab-keys" class="hidden"><h1 class="text-2xl font-black">License Keys</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{keys_list_html}}</div></div></div>
 
-    <div id="tab-logs" class="hidden"><h1 class="text-2xl font-black">KeyAuth Session Audit Trail</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{logs_list_html}}</div></div></div>
-
-    <div id="tab-integrate" class="hidden"><h1 class="text-2xl font-black">Secure Client Integration</h1><div class="glass-card mt-6 rounded-2xl p-7">
-      <p class="text-xs font-bold text-sky-300">KeyAuth Encrypted Payload Verification Script (Anti-Fiddler Engine)</p>
-      <pre class="mt-4 bg-black/90 border border-white/10 rounded-xl p-5 text-xs font-mono overflow-x-auto text-emerald-400 leading-relaxed">
+    <div id="tab-integrate" class="hidden"><h1 class="text-2xl font-black">Secure Client Integration Code</h1><div class="glass-card mt-6 rounded-2xl p-7">
+      <p class="text-xs font-bold text-cyan-300">Encrypted Payload Verification Script (Anti-Fiddler/Anti-HTTP Debugger)</p>
+      <pre class="mt-4 bg-black/90 border border-white/10 rounded-xl p-5 text-xs font-mono overflow-x-auto text-green-400 leading-relaxed">
 import requests, subprocess, hashlib
 
 MY_APP_TOKEN = "{{active_token}}"
@@ -344,7 +348,7 @@ def secure_login(username, password):
     <div id="tab-billing" class="hidden"><h1 class="text-2xl font-black">Billing / Plans</h1>
       <div class="grid grid-cols-2 gap-6 mt-6">
         <div class="glass-card rounded-2xl p-7"><p class="font-bold text-sm text-zinc-300">FREE PLAN</p><p class="text-4xl font-black mt-2">₹0</p><p class="text-xs text-zinc-400 mt-3 leading-relaxed">✓ 10 Users / Keys Only<br>✓ 1 Application<br>✓ HWID Lock</p><p class="mt-6 text-xs bg-zinc-800/80 rounded-full px-4 py-1.5 inline-block font-semibold">Current: {{plan_text}}</p></div>
-        <div class="glass-card rounded-2xl p-7 border-sky-400/50 bg-sky-500/10"><p class="font-bold text-sm text-sky-400">PRO UNLIMITED</p><p class="text-4xl font-black mt-2">₹499</p><p class="text-xs text-zinc-200 mt-3 leading-relaxed">✓ Unlimited Users<br>✓ Unlimited Apps<br>✓ Unlimited Keys<br>✓ Anti-Crack Engine</p><a href="https://wa.me/919999999999" target="_blank" class="mt-6 block text-center bg-gradient-to-r from-sky-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_25px_rgba(56,189,248,0.5)] transition">Buy on WhatsApp</a></div>
+        <div class="glass-card rounded-2xl p-7 border-cyan-400/50 bg-cyan-500/10"><p class="font-bold text-sm text-cyan-400">PRO UNLIMITED</p><p class="text-4xl font-black mt-2">₹499</p><p class="text-xs text-zinc-200 mt-3 leading-relaxed">✓ Unlimited Users<br>✓ Unlimited Apps<br>✓ Unlimited Keys<br>✓ Anti-Crack Engine</p><a href="https://wa.me/919999999999" target="_blank" class="mt-6 block text-center bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_25px_rgba(34,211,238,0.5)] transition">Buy on WhatsApp</a></div>
       </div>
     </div>
   </div>
@@ -459,7 +463,7 @@ def dash():
     is_paid = email in PAID_USERS
     limit_text = "Unlimited" if is_paid else "10"
     plan_text = "PRO UNLIMITED" if is_paid else "FREE"
-    plan_color = "text-emerald-400" if is_paid else "text-amber-400"
+    plan_color = "text-green-400" if is_paid else "text-yellow-400"
     
     apps = db("SELECT * FROM apps WHERE owner_email=?", (email,), True)
     if not apps:
@@ -475,22 +479,19 @@ def dash():
         ])
         
     keys = db("SELECT * FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
-    keys_count = len(keys)
     keys_list_html = "".join([
-        f"<div class='flex justify-between bg-black/80 border border-white/10 rounded-xl px-4 py-3'><span>{k[1]}</span><span class='{'text-emerald-400' if k[3] == 'unused' else 'text-rose-400'}'>● {k[3]}</span></div>"
+        f"<div class='flex justify-between bg-black/80 border border-white/10 rounded-xl px-4 py-3'><span>{k[1]}</span><span class='{'text-green-400' if k[3] == 'unused' else 'text-red-400'}'>● {k[3]}</span></div>"
         for k in keys
     ]) if keys else "<p class='text-center text-zinc-600 text-xs mt-10'>No keys</p>"
 
     tool_users = db("SELECT * FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
     tool_user_count = len(tool_users)
-    hwid_bound_count = sum(1 for u in tool_users if u[5])
-    banned_count = sum(1 for u in tool_users if u[4] == "banned")
     percent = 10 if tool_user_count == 0 else min(int(tool_user_count / (999999 if is_paid else 10) * 100), 100)
     
     tool_users_list_html = ""
     for u in tool_users:
         hwid_short = (u[5][:15] + "...") if u[5] else "Not Bound"
-        status_color = "text-emerald-400" if u[4] == "active" else "text-rose-400"
+        status_color = "text-green-400" if u[4] == "active" else "text-red-400"
         ban_text = "Ban" if u[4] == "active" else "Unban"
         tool_users_list_html += f"""
         <div class='flex justify-between items-center bg-black/80 border border-white/10 rounded-xl px-4 py-3 mb-2'>
@@ -500,20 +501,14 @@ def dash():
             </div>
             <div class='flex gap-2 flex-wrap justify-end max-w-[60%]'>
                 <button onclick="editUser('{u[1]}','{u[2]}')" class='bg-blue-900/50 border border-blue-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-blue-800 transition'>Edit</button>
-                <button onclick="toggleBan('{u[1]}')" class='bg-amber-900/50 border border-amber-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-amber-800 transition'>{ban_text}</button>
+                <button onclick="toggleBan('{u[1]}')" class='bg-yellow-900/50 border border-yellow-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-yellow-800 transition'>{ban_text}</button>
                 <button onclick="resetHwid('{u[1]}')" class='bg-zinc-800 border border-white/10 px-3 py-1 rounded-lg text-[10px] hover:bg-zinc-700 transition'>Reset HWID</button>
-                <button onclick="deleteUser('{u[1]}')" class='bg-rose-900/50 border border-rose-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-rose-800 transition'>Delete</button>
+                <button onclick="deleteUser('{u[1]}')" class='bg-red-900/50 border border-red-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-red-800 transition'>Delete</button>
             </div>
         </div>
         """
     if not tool_users_list_html:
         tool_users_list_html = "<p class='text-center text-zinc-600 text-xs mt-10'>No registered users.</p>"
-
-    logs = db("SELECT * FROM logs WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?) ORDER BY id DESC LIMIT 20", (email,), True) if apps else []
-    logs_list_html = "".join([
-        f"<div class='flex justify-between bg-black/80 border border-white/10 rounded-xl px-4 py-2.5 text-[11px]'><span class='text-sky-300 font-bold'>[{l[5]}]</span><span>{l[2]} ({l[3]})</span><span class='text-zinc-500'>IP: {l[4]}</span></div>"
-        for l in logs
-    ]) if logs else "<p class='text-center text-zinc-600 text-xs mt-10'>No authentication audit logs found.</p>"
 
     html = (
         DASHBOARD_HTML.replace("{{name}}", session["user"].get("name", "User"))
@@ -522,16 +517,12 @@ def dash():
         .replace("{{active_token}}", active_token)
         .replace("{{app_list_html}}", app_list_html)
         .replace("{{keys_list_html}}", keys_list_html)
-        .replace("{{keys_count}}", str(keys_count))
         .replace("{{tool_user_count}}", str(tool_user_count))
-        .replace("{{hwid_bound_count}}", str(hwid_bound_count))
-        .replace("{{banned_count}}", str(banned_count))
         .replace("{{limit_text}}", limit_text)
         .replace("{{plan_text}}", plan_text)
         .replace("{{plan_color}}", plan_color)
         .replace("{{percent}}", str(percent))
         .replace("{{tool_users_list_html}}", tool_users_list_html)
-        .replace("{{logs_list_html}}", logs_list_html)
     )
     return render_template_string(html)
 
@@ -579,7 +570,6 @@ def api_create_user():
     try:
         db("INSERT INTO tool_users (username, password, app_token, status, created_at) VALUES (?,?,?,?,?)",
            (username, password, app_token, "active", datetime.now().isoformat()))
-        log_event(app_token, username, "USER_CREATED")
         return jsonify({"message": f"User Created: {username}"}), 200
     except Exception:
         return jsonify({"message": "Username already exists!"})
@@ -638,29 +628,23 @@ def api_auth_login():
 
     expected_sig = hashlib.sha256(f"{username}:{hwid}:{token}".encode()).hexdigest()
     if client_sig and client_sig != expected_sig:
-        log_event(token, username or "UNKNOWN", "TAMPER_ATTEMPT")
         return jsonify({"status": "tampered", "message": "Request payload tampered!"}), 403
 
     res = db("SELECT * FROM tool_users WHERE username=? AND password=? AND app_token=?", (username, password, token), True)
     if not res:
-        log_event(token, username, "FAILED_LOGIN")
         return jsonify({"status": "invalid", "message": "Incorrect credentials"})
         
     user_row = res[0]
     if user_row[4] == "banned":
-        log_event(token, username, "BANNED_ATTEMPT")
         return jsonify({"status": "banned", "message": "Account suspended"})
         
     if not user_row[5]:
         db("UPDATE tool_users SET hwid=?, status='active' WHERE username=?", (hwid, username))
-        log_event(token, username, "HWID_BOUND")
         return jsonify({"status": "valid", "message": "HWID Bound Successfully"})
     else:
         if user_row[5] == hwid:
-            log_event(token, username, "SUCCESSFUL_AUTH")
             return jsonify({"status": "valid", "message": "Authentication Success"})
         else:
-            log_event(token, username, "HWID_MISMATCH")
             return jsonify({"status": "hwid_mismatch", "message": "Hardware mismatch detected"})
 
 @app.route("/logout")
