@@ -480,6 +480,10 @@ def api_validate():
 @app.route("/api/auth_login", methods=["POST"])
 def api_auth_login():
   data = request.json
+  print("--- DEBUG LOGIN DATA ---", data) # <-- Ye line add karein
+    
+  username = data.get("username")
+  data = request.json
   username = data.get("username")
   password = data.get("password")
   hwid = data.get("hwid")
