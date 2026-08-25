@@ -1,13 +1,12 @@
 import os
-import random
-import sqlite3
-import string
 import time
+import secrets
+import sqlite3
 import hashlib
 from datetime import datetime, timedelta
 from functools import wraps
+from html import escape
 
-from authlib.integrations.flask_client import OAuth
 from flask import (
     Flask,
     jsonify,
@@ -15,1250 +14,3245 @@ from flask import (
     render_template_string,
     request,
     session,
+    abort,
 )
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import generate_password_hash, check_password_hash
+from authlib.integrations.flask_client import OAuth
 
-# ==========================================
-# APP INITIALIZATION & SECURITY CONFIG
-# ==========================================
+
+# ============================================================
+# HSL CORP AUTH PANEL
+# STABLE / LOW-LAG / FIXED VERSION
+# ============================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "hsl.db")
+
+
+# ============================================================
+# APP
+# ============================================================
 
 app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-app.secret_key = os.environ.get(
-    "FLASK_SECRET_KEY", 
-    "hsl_corp_ultra_secure_key_2026_x89_production_ready"
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=1,
+    x_proto=1,
+    x_host=1,
 )
+
+SECRET_KEY = os.environ.get("FLASK_SECRET_KEY")
+
+if not SECRET_KEY:
+    # Development fallback only.
+    # On production, set FLASK_SECRET_KEY in environment variables.
+    SECRET_KEY = "CHANGE_THIS_HSL_CORP_SECRET_2026"
+
+app.secret_key = SECRET_KEY
 
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=False,
-    PERMANENT_SESSION_LIFETIME=timedelta(hours=4)
+    SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "0") == "1",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=4),
 )
+
+
+# ============================================================
+# GOOGLE OAUTH
+# ============================================================
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 
-PAID_USERS = [
-    "js7876839939@gmail.com"
-]
+PAID_USERS = {
+    "js7876839939@gmail.com",
+}
+
 
 oauth = OAuth(app)
-google = oauth.register(
-    name="google",
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
-    client_kwargs={
-        "scope": "openid email profile"
-    },
-)
 
-# ==========================================
-# RATE LIMITING & SECURITY MIDDLEWARE
-# ==========================================
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    google = oauth.register(
+        name="google",
+        server_metadata_url=(
+            "https://accounts.google.com/"
+            ".well-known/openid-configuration"
+        ),
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        client_kwargs={
+            "scope": "openid email profile"
+        },
+    )
+else:
+    google = None
 
-REQUEST_HISTORY = {}
 
-def rate_limit(max_requests=10, window_seconds=60):
-    def decorator(f):
-        @wraps(f)
-        def wrapped(*args, **kwargs):
-            ip = request.remote_addr
-            now = time.time()
-            
-            if ip not in REQUEST_HISTORY:
-                REQUEST_HISTORY[ip] = []
-                
-            REQUEST_HISTORY[ip] = [
-                t for t in REQUEST_HISTORY[ip] 
-                if now - t < window_seconds
-            ]
-            
-            if len(REQUEST_HISTORY[ip]) >= max_requests:
-                return jsonify({
-                    "status": "rate_limited",
-                    "message": "Too many attempts. Request blocked due to security policies."
-                }), 429
-                
-            REQUEST_HISTORY[ip].append(now)
-            return f(*args, **kwargs)
-        return wrapped
-    return decorator
+# ============================================================
+# CONSTANTS
+# ============================================================
 
-@app.after_request
-def apply_security_headers(response):
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    return response
+FREE_APP_LIMIT = 2
+FREE_RESOURCE_LIMIT = 10
 
-# ==========================================
-# DATABASE ENGINE & SCHEMAS
-# ==========================================
+RATE_HISTORY = {}
+
+MAX_USERNAME = 40
+MAX_PASSWORD = 128
+MAX_APP_NAME = 50
+
+
+# ============================================================
+# DATABASE
+# ============================================================
+
+def get_db():
+    con = sqlite3.connect(DB_PATH, timeout=15)
+    con.row_factory = sqlite3.Row
+    return con
+
+
+def db_execute(query, params=()):
+    con = get_db()
+
+    try:
+        cur = con.cursor()
+        cur.execute(query, params)
+        con.commit()
+        return cur.lastrowid
+    finally:
+        con.close()
+
+
+def db_fetchone(query, params=()):
+    con = get_db()
+
+    try:
+        cur = con.cursor()
+        cur.execute(query, params)
+        return cur.fetchone()
+    finally:
+        con.close()
+
+
+def db_fetchall(query, params=()):
+    con = get_db()
+
+    try:
+        cur = con.cursor()
+        cur.execute(query, params)
+        return cur.fetchall()
+    finally:
+        con.close()
+
 
 def init_db():
-    con = sqlite3.connect("hsl.db")
-    cur = con.cursor()
-    
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS apps (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            name TEXT, 
-            token TEXT UNIQUE, 
-            owner_email TEXT, 
-            created_at TEXT
-        )
-    """)
-    
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS keys (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            key_text TEXT UNIQUE, 
-            app_token TEXT, 
-            status TEXT, 
-            hwid TEXT, 
-            used_by TEXT, 
-            created_at TEXT
-        )
-    """)
-    
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            email TEXT, 
-            hwid TEXT, 
-            app_token TEXT, 
-            key_text TEXT, 
-            first_seen TEXT
-        )
-    """)
-    
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS tool_users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            username TEXT UNIQUE, 
-            password TEXT, 
-            app_token TEXT, 
-            status TEXT, 
-            hwid TEXT, 
-            created_at TEXT
-        )
-    """)
-    
-    con.commit()
-    con.close()
+    con = get_db()
+
+    try:
+        cur = con.cursor()
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS apps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                token TEXT UNIQUE NOT NULL,
+                owner_email TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tool_users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                app_token TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                hwid TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key_text TEXT UNIQUE NOT NULL,
+                app_token TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'unused',
+                hwid TEXT,
+                used_by TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT,
+                hwid TEXT,
+                app_token TEXT,
+                key_text TEXT,
+                first_seen TEXT
+            )
+        """)
+
+        con.commit()
+
+    finally:
+        con.close()
+
 
 init_db()
 
-def db(query, params=(), fetch=False):
-    con = sqlite3.connect("hsl.db")
-    cur = con.cursor()
-    cur.execute(query, params)
-    data = cur.fetchall() if fetch else None
-    con.commit()
-    con.close()
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def now_iso():
+    return datetime.utcnow().isoformat()
+
+
+def clean_text(value, max_length):
+    if value is None:
+        return ""
+
+    value = str(value).strip()
+
+    return value[:max_length]
+
+
+def generate_app_token():
+    return "HSL_" + secrets.token_urlsafe(24).replace("-", "").replace("_", "")[:32]
+
+
+def hash_password(password):
+    return generate_password_hash(password)
+
+
+def verify_password(stored, password):
+    try:
+        return check_password_hash(stored, password)
+    except Exception:
+        # Backward compatibility for old plaintext passwords.
+        return secrets.compare_digest(stored, password)
+
+
+def current_email():
+    user = session.get("user")
+
+    if not user:
+        return None
+
+    return user.get("email")
+
+
+def is_logged_in():
+    return "user" in session and bool(current_email())
+
+
+def is_paid(email):
+    return email in PAID_USERS
+
+
+def require_login():
+    if not is_logged_in():
+        return jsonify({
+            "error": "Unauthorized"
+        }), 401
+
+    return None
+
+
+def json_body():
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return {}
+
     return data
 
-# ==========================================
-# CSS STYLES & ANIMATED CROSSHAIR CURSOR
-# ==========================================
 
-COMMON_HEAD = """
+# ============================================================
+# RATE LIMIT
+# ============================================================
+
+def rate_limit(max_requests=10, window_seconds=60):
+
+    def decorator(func):
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+
+            ip = request.headers.get(
+                "X-Forwarded-For",
+                request.remote_addr or "unknown"
+            ).split(",")[0].strip()
+
+            key = f"{func.__name__}:{ip}"
+
+            current = time.time()
+
+            history = RATE_HISTORY.get(key, [])
+
+            history = [
+                timestamp
+                for timestamp in history
+                if current - timestamp < window_seconds
+            ]
+
+            if len(history) >= max_requests:
+                RATE_HISTORY[key] = history
+
+                return jsonify({
+                    "status": "rate_limited",
+                    "message": "Too many requests. Please try again later."
+                }), 429
+
+            history.append(current)
+            RATE_HISTORY[key] = history
+
+            # Avoid unlimited memory growth.
+            if len(RATE_HISTORY) > 5000:
+                old_keys = list(RATE_HISTORY.keys())[:1000]
+
+                for old_key in old_keys:
+                    RATE_HISTORY.pop(old_key, None)
+
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+# ============================================================
+# SECURITY HEADERS
+# ============================================================
+
+@app.after_request
+def security_headers(response):
+
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = (
+        "strict-origin-when-cross-origin"
+    )
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=()"
+    )
+
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self' https: data: blob: 'unsafe-inline' "
+        "'unsafe-eval'; img-src 'self' https: data:;"
+    )
+
+    return response
+
+
+# ============================================================
+# LOW-LAG COMMON CSS
+# ============================================================
+
+COMMON_HEAD = r"""
 <script src="https://cdn.tailwindcss.com"></script>
+
 <style>
-  :root {
-    --cyan: #00f6ff;
-    --blue: #3b82f6;
-    --violet: #7c3aed;
-    --danger: #ff1744;
-    --bg: #03050b;
-    --panel: rgba(7, 10, 19, .78);
-    --line: rgba(0, 246, 255, .16);
-  }
 
-  * { box-sizing: border-box; }
+:root{
+    --cyan:#00eaff;
+    --blue:#2563eb;
+    --violet:#7c3aed;
+    --red:#ff1744;
+    --bg:#03050a;
+}
 
-  html { scroll-behavior: smooth; }
+*{
+    box-sizing:border-box;
+}
 
-  body {
+html{
+    scroll-behavior:smooth;
+}
+
+body{
+    margin:0;
     background:
-      radial-gradient(circle at 50% -10%, rgba(0,246,255,.12), transparent 35%),
-      radial-gradient(circle at 100% 100%, rgba(124,58,237,.10), transparent 30%),
-      #03050b;
-    color: #f8fafc;
-    cursor: none;
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-      "Segoe UI", Roboto, sans-serif;
-    letter-spacing: .01em;
-  }
+        radial-gradient(
+            circle at 50% -10%,
+            rgba(0,234,255,.10),
+            transparent 35%
+        ),
+        radial-gradient(
+            circle at 100% 100%,
+            rgba(124,58,237,.08),
+            transparent 30%
+        ),
+        #03050a;
 
-  ::selection {
-    background: rgba(0,246,255,.28);
-    color: white;
-  }
+    color:#f8fafc;
+    font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
 
-  ::-webkit-scrollbar { width: 7px; height: 7px; }
-  ::-webkit-scrollbar-track { background: #02040a; }
-  ::-webkit-scrollbar-thumb {
-    background: linear-gradient(var(--cyan), var(--violet));
-    border-radius: 999px;
-  }
+    letter-spacing:.01em;
+}
 
-  #c {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    opacity: .9;
-  }
+::selection{
+    background:rgba(0,234,255,.25);
+    color:white;
+}
 
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
+::-webkit-scrollbar{
+    width:6px;
+}
+
+::-webkit-scrollbar-track{
+    background:#020308;
+}
+
+::-webkit-scrollbar-thumb{
+    background:#155e75;
+    border-radius:999px;
+}
+
+#particles{
+    position:fixed;
+    inset:0;
+    width:100%;
+    height:100%;
+    z-index:0;
+    pointer-events:none;
+    opacity:.72;
+}
+
+.ambient{
+    position:fixed;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+
     background:
-      linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
-    background-size: 42px 42px;
-    mask-image: linear-gradient(to bottom, black, transparent 90%);
-  }
+        radial-gradient(
+            circle at 20% 30%,
+            rgba(0,234,255,.045),
+            transparent 25%
+        ),
+        radial-gradient(
+            circle at 80% 20%,
+            rgba(124,58,237,.045),
+            transparent 25%
+        );
+}
 
-  body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    background: repeating-linear-gradient(
-      0deg,
-      rgba(255,255,255,.012) 0px,
-      rgba(255,255,255,.012) 1px,
-      transparent 1px,
-      transparent 4px
-    );
-    opacity: .45;
-  }
+.vignette{
+    position:fixed;
+    inset:0;
+    z-index:2;
+    pointer-events:none;
 
-  .glass {
-    position: relative;
-    overflow: hidden;
-    backdrop-filter: blur(24px) saturate(140%);
-    -webkit-backdrop-filter: blur(24px) saturate(140%);
-    background:
-      linear-gradient(145deg, rgba(15,20,35,.88), rgba(3,7,15,.74));
-    border: 1px solid rgba(0,246,255,.18);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.055),
-      0 25px 80px rgba(0,0,0,.45),
-      0 0 45px rgba(0,246,255,.06);
-  }
+        inset 0 0 130px rgba(0,0,0,.82);
+}
 
-  .glass::before,
-  .glass-card::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(
-      120deg,
-      rgba(0,246,255,.055),
-      transparent 28%,
-      transparent 72%,
-      rgba(124,58,237,.045)
-    );
-  }
+.grid-bg{
+    position:fixed;
+    inset:0;
+    z-index:1;
+    pointer-events:none;
 
-  .glass-card {
-    position: relative;
-    overflow: hidden;
+    background-image:
+        linear-gradient(
+            rgba(255,255,255,.012) 1px,
+            transparent 1px
+        ),
+        linear-gradient(
+            90deg,
+            rgba(255,255,255,.012) 1px,
+            transparent 1px
+        );
+
+    background-size:48px 48px;
+}
+
+.glass{
     background:
-      linear-gradient(145deg, rgba(12,17,30,.86), rgba(4,7,14,.72));
-    border: 1px solid rgba(0,246,255,.13);
-    backdrop-filter: blur(18px) saturate(130%);
-    -webkit-backdrop-filter: blur(18px) saturate(130%);
+        linear-gradient(
+            145deg,
+            rgba(13,19,32,.90),
+            rgba(3,7,14,.82)
+        );
+
+    border:1px solid rgba(0,234,255,.15);
+
+    box-shadow:
+        0 15px 50px rgba(0,0,0,.35),
+        inset 0 1px 0 rgba(255,255,255,.035);
+
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+}
+
+.card{
+    background:
+        linear-gradient(
+            145deg,
+            rgba(12,18,31,.88),
+            rgba(3,7,14,.80)
+        );
+
+    border:1px solid rgba(0,234,255,.11);
+
+    box-shadow:
+        0 10px 35px rgba(0,0,0,.28);
+
     transition:
-      transform .28s cubic-bezier(.2,.8,.2,1),
-      border-color .28s ease,
-      box-shadow .28s ease,
-      background .28s ease;
+        transform .2s ease,
+        border-color .2s ease,
+        box-shadow .2s ease;
+}
+
+.card:hover{
+    transform:translateY(-3px);
+    border-color:rgba(0,234,255,.28);
+
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.035),
-      0 12px 45px rgba(0,0,0,.30);
-  }
+        0 15px 45px rgba(0,0,0,.40),
+        0 0 25px rgba(0,234,255,.06);
+}
 
-  .glass-card:hover {
-    border-color: rgba(0,246,255,.38);
-    transform: translateY(-5px);
-    background:
-      linear-gradient(145deg, rgba(15,24,42,.92), rgba(4,8,17,.80));
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.06),
-      0 18px 55px rgba(0,0,0,.48),
-      0 0 35px rgba(0,246,255,.13);
-  }
-
-  input, select {
-    transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
-  }
-
-  input:focus, select:focus {
-    border-color: rgba(0,246,255,.65) !important;
-    box-shadow: 0 0 0 3px rgba(0,246,255,.07), 0 0 22px rgba(0,246,255,.10);
-  }
-
-  button, a {
+button,
+a{
     transition:
-      transform .2s ease,
-      filter .2s ease,
-      border-color .2s ease,
-      box-shadow .2s ease,
-      background .2s ease;
-  }
+        transform .15s ease,
+        filter .15s ease,
+        border-color .15s ease;
+}
 
-  button:hover, a:hover { filter: brightness(1.08); }
+button:hover,
+a:hover{
+    filter:brightness(1.08);
+}
 
-  button:active, a:active { transform: scale(.97); }
+button:active,
+a:active{
+    transform:scale(.98);
+}
 
-  /* Makes Tailwind gradient buttons look more aggressive without changing markup. */
-  .bg-gradient-to-r {
-    background-size: 180% 100%;
-    animation: gradientShift 5s ease infinite;
-  }
+input,
+select{
+    outline:none;
+}
 
-  @keyframes gradientShift {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-  }
+input:focus,
+select:focus{
+    border-color:rgba(0,234,255,.55)!important;
+    box-shadow:0 0 0 2px rgba(0,234,255,.06);
+}
 
-  /* Animated cyber corners for major panels. */
-  .glass-card::after,
-  .glass::after {
-    content: "";
-    position: absolute;
-    width: 55px;
-    height: 55px;
-    right: -28px;
-    bottom: -28px;
-    border: 1px solid rgba(0,246,255,.18);
-    transform: rotate(45deg);
-    pointer-events: none;
-  }
-
-  #cursor-dot {
-    position: fixed;
-    width: 7px;
-    height: 7px;
-    background: var(--cyan);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9999;
-    transform: translate(-50%, -50%);
+.side-active{
+    color:#67f7ff!important;
+    background:rgba(0,234,255,.10)!important;
+    border:1px solid rgba(0,234,255,.28)!important;
     box-shadow:
-      0 0 8px var(--cyan),
-      0 0 20px var(--cyan),
-      0 0 38px rgba(0,246,255,.7);
-  }
+        inset 3px 0 0 var(--cyan),
+        0 0 18px rgba(0,234,255,.05);
+}
 
-  #cursor-crosshair {
-    position: fixed;
-    width: 34px;
-    height: 34px;
-    border: 1px solid rgba(0,246,255,.7);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9998;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 0 18px rgba(0,246,255,.16);
-  }
+.cursor-dot,
+.cursor-ring{
+    position:fixed;
+    pointer-events:none;
+    z-index:99999;
+}
 
-  #cursor-crosshair::before {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: -8px;
-    width: 48px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(0,246,255,.85), transparent);
-    transform: translateY(-50%);
-  }
-
-  #cursor-crosshair::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: -8px;
-    height: 48px;
-    width: 1px;
-    background: linear-gradient(180deg, transparent, rgba(0,246,255,.85), transparent);
-    transform: translateX(-50%);
-  }
-
-  #cursor-orbit {
-    position: fixed;
-    width: 56px;
-    height: 56px;
-    border: 1px dashed rgba(124,58,237,.75);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9997;
-    transform: translate(-50%, -50%);
-    animation: spinOrbit 5s linear infinite;
-    box-shadow: 0 0 18px rgba(124,58,237,.10);
-  }
-
-  @keyframes spinOrbit {
-    0% { transform: translate(-50%, -50%) rotate(0deg); }
-    100% { transform: translate(-50%, -50%) rotate(360deg); }
-  }
-
-  .side-active {
-    position: relative;
-    overflow: hidden;
-    background:
-      linear-gradient(90deg, rgba(0,246,255,.16), rgba(124,58,237,.08)) !important;
-    border: 1px solid rgba(0,246,255,.42) !important;
-    color: #67f7ff !important;
-    font-weight: 800;
+.cursor-dot{
+    width:6px;
+    height:6px;
+    border-radius:50%;
+    background:var(--cyan);
     box-shadow:
-      inset 3px 0 0 var(--cyan),
-      0 0 24px rgba(0,246,255,.08);
-  }
+        0 0 8px var(--cyan),
+        0 0 18px var(--cyan);
+    transform:translate(-50%,-50%);
+}
 
-  .side-active::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 2px;
-    height: 100%;
-    background: var(--cyan);
-    box-shadow: 0 0 14px var(--cyan);
-  }
+.cursor-ring{
+    width:28px;
+    height:28px;
+    border:1px solid rgba(0,234,255,.55);
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    transition:
+        width .15s ease,
+        height .15s ease,
+        border-color .15s ease;
+}
 
-  @media (max-width: 768px) {
-    body { cursor: auto; }
-    #cursor-dot, #cursor-crosshair, #cursor-orbit { display: none; }
-  }
+.cursor-ring::before,
+.cursor-ring::after{
+    content:"";
+    position:absolute;
+    background:rgba(0,234,255,.65);
+}
 
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: .01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: .01ms !important;
+.cursor-ring::before{
+    width:40px;
+    height:1px;
+    left:-7px;
+    top:13px;
+}
+
+.cursor-ring::after{
+    width:1px;
+    height:40px;
+    left:13px;
+    top:-7px;
+}
+
+@media(max-width:768px){
+
+    .cursor-dot,
+    .cursor-ring{
+        display:none;
     }
-  }
+
+    body{
+        cursor:auto;
+    }
+}
+
+@media(prefers-reduced-motion:reduce){
+
+    *,
+    *::before,
+    *::after{
+        animation:none!important;
+        transition:none!important;
+    }
+}
+
 </style>
 """
 
-CURSOR_SCRIPT = """
-<div id="cursor-dot"></div>
-<div id="cursor-crosshair"></div>
-<div id="cursor-orbit"></div>
+
+# ============================================================
+# PARTICLES / CURSOR
+# ============================================================
+
+CURSOR_SCRIPT = r"""
+<div class="cursor-dot" id="cursorDot"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
 <script>
-  const dot = document.getElementById('cursor-dot');
-  const cross = document.getElementById('cursor-crosshair');
-  const orbit = document.getElementById('cursor-orbit');
-  let mx = 0, my = 0, cx = 0, cy = 0;
 
-  window.addEventListener('mousemove', (e) => {
-    mx = e.clientX;
-    my = e.clientY;
-    dot.style.left = mx + 'px';
-    dot.style.top = my + 'px';
-  });
+(() => {
 
-  function renderCursor() {
-    cx += (mx - cx) * 0.18;
-    cy += (my - cy) * 0.18;
-    cross.style.left = cx + 'px';
-    cross.style.top = cy + 'px';
-    orbit.style.left = cx + 'px';
-    orbit.style.top = cy + 'px';
-    requestAnimationFrame(renderCursor);
-  }
-  renderCursor();
+    const canvas = document.getElementById("particles");
 
-  const canvasElement = document.getElementById('c');
-  const ctx = canvasElement.getContext('2d');
-  
-  function resizeCanvas() { 
-    canvasElement.width = window.innerWidth; 
-    canvasElement.height = window.innerHeight; 
-  }
-  resizeCanvas(); 
-  window.onresize = resizeCanvas;
-  
-  let particlesArray = [];
-  for(let i = 0; i < 90; i++) {
-    particlesArray.push({ 
-      x: Math.random() * canvasElement.width, 
-      y: Math.random() * canvasElement.height, 
-      r: Math.random() * 1.8 + 0.5, 
-      vy: Math.random() * 0.6 + 0.2, 
-      opacity: Math.random() * 0.7 + 0.3 
-    });
-  }
-  
-  window.addEventListener('mousemove', (e) => {
-    if(Math.random() > 0.4) {
-      particlesArray.push({ 
-        x: e.clientX, 
-        y: e.clientY, 
-        r: Math.random() * 2 + 1, 
-        vy: -(Math.random() * 1.2 + 0.4), 
-        opacity: 1 
-      });
-      if(particlesArray.length > 120) {
-        particlesArray.shift();
-      }
+    if(!canvas){
+        return;
     }
-  });
 
-  function animateParticles() {
-    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    particlesArray.forEach(p => {
-      p.y -= p.vy;
-      if(p.opacity > 0.3) {
-        p.opacity -= 0.005;
-      }
-      if(p.y < 0) { 
-        p.y = canvasElement.height; 
-        p.x = Math.random() * canvasElement.width; 
-        p.opacity = Math.random() * 0.7 + 0.3; 
-      }
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(34, 211, 238, ${p.opacity})`;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = '#22d3ee';
-      ctx.fill();
+    const ctx = canvas.getContext("2d", {
+        alpha:true
     });
-    requestAnimationFrame(animateParticles);
-  }
-  animateParticles();
+
+    const dot = document.getElementById("cursorDot");
+    const ring = document.getElementById("cursorRing");
+
+    let width = 0;
+    let height = 0;
+
+    let mouseX = -100;
+    let mouseY = -100;
+
+    let ringX = -100;
+    let ringY = -100;
+
+    const particles = [];
+
+    const MOBILE =
+        window.matchMedia("(max-width: 768px)").matches;
+
+    const COUNT = MOBILE ? 25 : 70;
+
+    function resize(){
+
+        const dpr = Math.min(
+            window.devicePixelRatio || 1,
+            1.5
+        );
+
+        width = window.innerWidth;
+        height = window.innerHeight;
+
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+
+        canvas.style.width = width + "px";
+        canvas.style.height = height + "px";
+
+        ctx.setTransform(
+            dpr,
+            0,
+            0,
+            dpr,
+            0,
+            0
+        );
+    }
+
+    resize();
+
+    window.addEventListener(
+        "resize",
+        resize,
+        {passive:true}
+    );
+
+    for(let i = 0; i < COUNT; i++){
+
+        particles.push({
+            x:Math.random()*window.innerWidth,
+            y:Math.random()*window.innerHeight,
+            vx:(Math.random()-.5)*.16,
+            vy:(Math.random()-.5)*.16,
+            r:Math.random()*1.25+.35,
+            a:Math.random()*.55+.15
+        });
+    }
+
+    window.addEventListener(
+        "mousemove",
+        e => {
+
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+
+            if(dot){
+                dot.style.left = mouseX + "px";
+                dot.style.top = mouseY + "px";
+            }
+
+        },
+        {passive:true}
+    );
+
+    document.addEventListener(
+        "mouseover",
+        e => {
+
+            if(
+                e.target &&
+                (
+                    e.target.closest("button") ||
+                    e.target.closest("a")
+                )
+            ){
+
+                if(ring){
+
+                    ring.style.width = "38px";
+                    ring.style.height = "38px";
+                }
+            }
+
+        },
+        {passive:true}
+    );
+
+    document.addEventListener(
+        "mouseout",
+        e => {
+
+            if(
+                e.target &&
+                (
+                    e.target.closest("button") ||
+                    e.target.closest("a")
+                )
+            ){
+
+                if(ring){
+
+                    ring.style.width = "28px";
+                    ring.style.height = "28px";
+                }
+            }
+
+        },
+        {passive:true}
+    );
+
+    function animateCursor(){
+
+        ringX += (mouseX-ringX)*.13;
+        ringY += (mouseY-ringY)*.13;
+
+        if(ring){
+
+            ring.style.left = ringX + "px";
+            ring.style.top = ringY + "px";
+        }
+
+        requestAnimationFrame(
+            animateCursor
+        );
+    }
+
+    animateCursor();
+
+
+    function draw(){
+
+        ctx.clearRect(
+            0,
+            0,
+            width,
+            height
+        );
+
+        for(let i=0;i<particles.length;i++){
+
+            const p = particles[i];
+
+            p.x += p.vx;
+            p.y += p.vy;
+
+            if(p.x < -10) p.x = width+10;
+            if(p.x > width+10) p.x = -10;
+
+            if(p.y < -10) p.y = height+10;
+            if(p.y > height+10) p.y = -10;
+
+            ctx.beginPath();
+
+            ctx.arc(
+                p.x,
+                p.y,
+                p.r,
+                0,
+                Math.PI*2
+            );
+
+            ctx.fillStyle =
+                "rgba(34,211,238," +
+                p.a +
+                ")";
+
+            ctx.fill();
+        }
+
+        requestAnimationFrame(draw);
+    }
+
+    draw();
+
+})();
+
 </script>
 """
 
-# ==========================================
-# UI TEMPLATES (LANDING, LOGIN & DASHBOARD)
-# ==========================================
 
-LANDING = """<!DOCTYPE html>
+# ============================================================
+# LANDING
+# ============================================================
+
+LANDING = r"""
+<!DOCTYPE html>
 <html>
 <head>
-""" + COMMON_HEAD + """
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HSL CORP</title>
+""" + COMMON_HEAD + r"""
 </head>
-<body class="text-white overflow-x-hidden relative min-h-screen flex flex-col justify-between">
-<canvas id="c"></canvas>
 
-<nav class="relative z-10 flex justify-between items-center px-10 py-5 bg-black/55 backdrop-blur-xl border-b border-cyan-400/15 shadow-[0_8px_35px_rgba(0,0,0,0.35)]">
-  <div class="flex items-center gap-3">
-    <div class="w-10 h-10 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_18px_#22d3ee]">👾</div>
-    <div>
-      <p class="font-black text-sm tracking-wider">HSL CORP</p>
-      <p class="text-[9px] text-cyan-400 font-bold tracking-widest">KEYAUTH STYLE AUTHENTICATION SYSTEM</p>
-    </div>
-  </div>
-  <div class="flex gap-4">
-    <a href="/login" class="bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-700 px-6 py-2.5 rounded-full text-xs font-semibold transition">Sign In</a>
-    <a href="/dashboard" class="bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 px-6 py-2.5 rounded-full text-xs font-bold shadow-[0_0_20px_rgba(34,211,238,0.5)] transition">Dashboard</a>
-  </div>
+<body class="min-h-screen overflow-x-hidden">
+
+<canvas id="particles"></canvas>
+<div class="grid-bg"></div>
+<div class="ambient"></div>
+<div class="vignette"></div>
+
+<nav class="
+relative z-10
+flex items-center justify-between
+px-6 md:px-10 py-5
+border-b border-cyan-400/10
+bg-black/45
+">
+
+<div class="flex items-center gap-3">
+
+<div class="
+w-10 h-10
+rounded-xl
+bg-gradient-to-r from-cyan-400 to-indigo-600
+flex items-center justify-center
+shadow-[0_0_20px_rgba(0,234,255,.4)]
+">
+👾
+</div>
+
+<div>
+<p class="font-black text-sm">
+HSL CORP
+</p>
+
+<p class="text-[9px] text-cyan-400 font-bold tracking-widest">
+AUTH INFRASTRUCTURE
+</p>
+</div>
+
+</div>
+
+<div class="flex gap-3">
+
+<a
+href="/login"
+class="
+px-5 py-2.5
+rounded-xl
+text-xs font-bold
+bg-zinc-900
+border border-white/10
+">
+Sign In
+</a>
+
+<a
+href="/dashboard"
+class="
+px-5 py-2.5
+rounded-xl
+text-xs font-bold
+bg-gradient-to-r from-cyan-400 to-indigo-600
+shadow-[0_0_20px_rgba(0,234,255,.3)]
+">
+Dashboard
+</a>
+
+</div>
+
 </nav>
 
-<div class="relative z-10 flex flex-col items-center text-center pt-20 px-4">
-  <div class="inline-flex items-center gap-2 border border-cyan-500/30 bg-cyan-500/10 px-4 py-1.5 rounded-full text-xs text-cyan-300 font-semibold mb-8 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
-    <span>⚡</span> Next-Gen Secure Software Panel
-  </div>
-  <h1 class="text-6xl md:text-7xl font-black bg-gradient-to-r from-cyan-300 via-cyan-400 to-indigo-500 bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(34,211,238,0.4)] max-w-5xl leading-tight">HSL CORP AUTH</h1>
-  <p class="text-zinc-400 mt-6 font-medium text-lg max-w-2xl">Ultimate Hardware-Locked Licensing & Application Protection Infrastructure.</p>
-  <a href="/login" class="bg-gradient-to-r from-cyan-400 to-indigo-600 hover:scale-105 px-9 py-4 rounded-2xl text-sm font-bold shadow-[0_0_30px_rgba(34,211,238,0.6)] mt-9 transition duration-300 flex items-center gap-2">🚀 Get Started</a>
+
+<main class="
+relative z-10
+max-w-6xl
+mx-auto
+px-6
+pt-24
+pb-24
+">
+
+<div class="text-center">
+
+<div class="
+inline-flex
+px-4 py-2
+rounded-full
+border border-cyan-400/20
+bg-cyan-400/5
+text-cyan-300
+text-xs font-bold
+">
+⚡ NEXT-GEN AUTH PANEL
 </div>
 
-<div class="relative z-10 w-full max-w-6xl mx-auto px-6 py-20">
-  <div class="grid md:grid-cols-3 gap-8">
-    <div class="glass-card rounded-2xl p-7">
-      <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-2xl mb-4">🔐</div>
-      <h3 class="font-bold text-lg text-cyan-300">Hardware-Locked Protection</h3>
-      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Binds license activations to distinct motherboard hash signatures, completely mitigating account-sharing and unauthorized leaks.</p>
-    </div>
-    <div class="glass-card rounded-2xl p-7">
-      <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-2xl mb-4">🛡️</div>
-      <h3 class="font-bold text-lg text-indigo-300">Hardened API Security</h3>
-      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Protects endpoint payloads using dynamic SHA-256 signatures, defending against Fiddler, HTTP Debugger, and response spoofing.</p>
-    </div>
-    <div class="glass-card rounded-2xl p-7">
-      <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-2xl mb-4">⚡</div>
-      <h3 class="font-bold text-lg text-cyan-300">Instant Admin Console</h3>
-      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Manage user registrations, execute immediate HWID resets, issue instant bans, and monitor active app tokens in real time.</p>
-    </div>
-  </div>
+<h1 class="
+mt-7
+text-5xl md:text-7xl
+font-black
+bg-gradient-to-r
+from-cyan-300
+via-cyan-400
+to-indigo-500
+bg-clip-text
+text-transparent
+">
+HSL CORP
+</h1>
+
+<p class="
+mt-5
+text-zinc-400
+max-w-2xl
+mx-auto
+text-sm md:text-lg
+">
+Hardware-bound application authentication,
+license management and developer control panel.
+</p>
+
+<a
+href="/login"
+class="
+inline-flex
+mt-9
+px-8 py-4
+rounded-2xl
+font-bold text-sm
+bg-gradient-to-r
+from-cyan-400
+to-indigo-600
+shadow-[0_0_30px_rgba(0,234,255,.35)]
+">
+🚀 Enter Console
+</a>
+
 </div>
 
-<footer class="relative z-10 text-center py-6 border-t border-white/5 text-xs text-zinc-600">
-  &copy; 2026 HSL CORP. All rights reserved.
+
+<div class="
+grid
+md:grid-cols-3
+gap-5
+mt-24
+">
+
+<div class="card rounded-2xl p-7">
+<div class="text-3xl">🔐</div>
+<h2 class="mt-4 font-bold text-cyan-300">
+HWID Protection
+</h2>
+<p class="mt-2 text-xs text-zinc-400 leading-relaxed">
+Bind application users to a hardware identifier
+and control resets from the dashboard.
+</p>
+</div>
+
+
+<div class="card rounded-2xl p-7">
+<div class="text-3xl">🛡️</div>
+<h2 class="mt-4 font-bold text-indigo-300">
+API Authentication
+</h2>
+<p class="mt-2 text-xs text-zinc-400 leading-relaxed">
+Authenticated API endpoints with rate limiting,
+session protection and validation.
+</p>
+</div>
+
+
+<div class="card rounded-2xl p-7">
+<div class="text-3xl">⚡</div>
+<h2 class="mt-4 font-bold text-cyan-300">
+Developer Console
+</h2>
+<p class="mt-2 text-xs text-zinc-400 leading-relaxed">
+Manage applications, users, HWID bindings and
+account status from one place.
+</p>
+</div>
+
+</div>
+
+</main>
+
+
+<footer class="
+relative z-10
+text-center
+border-t border-white/5
+py-6
+text-xs text-zinc-600
+">
+© 2026 HSL CORP
 </footer>
-""" + CURSOR_SCRIPT + """
-</body>
-</html>"""
 
-LOGIN = """<!DOCTYPE html>
-<html>
-<head>
-""" + COMMON_HEAD + """
-</head>
-<body class="flex items-center justify-center h-screen overflow-hidden relative">
-<canvas id="c"></canvas>
-<div class="relative z-10 w-[420px] glass rounded-[28px] p-9 text-center shadow-[0_0_60px_rgba(34,211,238,0.2)]">
-  <div class="w-16 h-16 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_25px_#22d3ee]">👾</div>
-  <h1 class="font-black text-2xl mt-5 text-white bg-gradient-to-r from-cyan-300 to-indigo-400 bg-clip-text text-transparent">HSL CORP</h1>
-  <p class="text-xs text-zinc-400 mt-1">Sign in using verified OAuth endpoints</p>
-  <a href="/auth/google" class="mt-8 w-full bg-white hover:bg-zinc-100 text-black rounded-xl py-3.5 flex justify-center items-center gap-3 font-bold text-sm shadow-lg hover:scale-[1.02] transition">
-    <img src="https://www.svgrepo.com/show/475656/google-color.svg" width=20> Continue with Google
-  </a>
-</div>
-""" + CURSOR_SCRIPT + """
-</body>
-</html>"""
+""" + CURSOR_SCRIPT + r"""
 
-DASHBOARD_HTML = """<!DOCTYPE html>
-<html>
-<head>
-""" + COMMON_HEAD + """
-<style>
-  .side-active { 
-    background: rgba(34,211,238,0.15); 
-    border: 1px solid rgba(34,211,238,0.4); 
-    color: #22d3ee !important; 
-    font-weight: bold; 
-  }
-</style>
-</head>
-<body class="flex h-screen text-white overflow-hidden relative">
-<canvas id="c"></canvas>
-
-<div class="w-[260px] bg-[#02040a]/90 backdrop-blur-2xl border-r border-cyan-400/10 shadow-[15px_0_45px_rgba(0,0,0,0.35)] flex flex-col relative z-10">
-  <div class="p-5 flex items-center gap-3 border-b border-white/10">
-    <div class="w-9 h-9 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_12px_#22d3ee]">👾</div>
-    <div>
-      <p class="font-black text-sm tracking-wide">HSL CORP</p>
-      <p class="text-[9px] text-cyan-400 font-bold">Developer Console</p>
-    </div>
-  </div>
-  
-  <div class="p-3 space-y-1 text-xs" id="sidebar">
-    <button onclick="showTab('overview')" id="btn-overview" class="side-active w-full text-left rounded-xl px-4 py-2.5 transition">🏠 Overview</button>
-    <button onclick="showTab('applications')" id="btn-applications" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">📦 Applications</button>
-    <button onclick="showTab('tool_users')" id="btn-tool_users" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">👤 Users ({{tool_user_count}}/{{limit_text}})</button>
-    <button onclick="showTab('keys')" id="btn-keys" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔑 License Keys</button>
-    <button onclick="showTab('integrate')" id="btn-integrate" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔌 Anti-Crack Integration</button>
-    <button onclick="showTab('billing')" id="btn-billing" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">💎 Billing / Upgrade</button>
-  </div>
-  
-  <div class="mt-auto p-4 border-t border-white/10 flex items-center gap-3 bg-black/40">
-    <img src="https://ui-avatars.com/api/?name={{name}}&background=22d3ee&color=fff" class="w-8 h-8 rounded-full border border-cyan-400/40">
-    <div>
-      <p class="text-[11px] font-bold truncate w-[110px]">{{email}}</p>
-      <p class="text-[9px] {{plan_color}} font-bold">{{plan_text}}</p>
-    </div>
-    <a href="/logout" class="ml-auto text-[11px] text-red-400 hover:text-red-300 font-semibold">Logout</a>
-  </div>
-</div>
-
-<div class="flex-1 overflow-y-auto relative z-10">
-  <div class="h-14 bg-black/55 backdrop-blur-xl border-b border-cyan-400/10 shadow-[0_8px_35px_rgba(0,0,0,0.3)] flex items-center justify-between px-8">
-    <p class="text-xs font-semibold tracking-wider text-cyan-300">HSL CONSOLE - {{plan_text}} PLAN</p>
-    <button onclick="showTab('billing')" class="text-xs bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 text-white px-5 py-2 rounded-full font-bold shadow-[0_0_15px_rgba(34,211,238,0.4)] transition">Upgrade to Unlimited</button>
-  </div>
-  
-  <div class="p-8">
-    <div id="tab-overview">
-      <h1 class="text-2xl font-black">Dashboard Overview</h1>
-      <div class="mt-6 grid grid-cols-[1.3fr_1fr_0.7fr] gap-4">
-        <div class="glass-card rounded-2xl p-5">
-          <p class="text-[10px] font-bold text-cyan-400 tracking-wider">ACTIVE APPLICATION</p>
-          <select id="appSelect" onchange="selectApp(this.value)" class="bg-black/80 border border-white/20 rounded-xl px-3 py-2.5 text-xs mt-3 w-full font-semibold focus:outline-none focus:border-cyan-400">{{app_options}}</select>
-        </div>
-        <div class="glass-card rounded-2xl p-5">
-          <p class="text-[10px] font-bold text-zinc-400 tracking-wider">MASTER APP TOKEN</p>
-          <div class="mt-3 flex justify-between items-center bg-black/80 rounded-xl px-3 py-2 border border-white/10">
-            <p id="tokenDisplay" class="text-xs font-mono text-zinc-300 truncate">{{active_token}}</p>
-            <button onclick="copyToken()" class="text-[10px] bg-gradient-to-r from-cyan-400 to-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:scale-105 transition">Copy</button>
-          </div>
-        </div>
-        <div class="glass-card rounded-2xl p-5">
-          <p class="text-[10px] font-bold text-zinc-400 tracking-wider">PLAN LIMIT</p>
-          <p class="text-xs font-bold mt-3">{{tool_user_count}} / {{limit_text}} Used</p>
-          <div class="w-full bg-zinc-800 h-2 mt-3 rounded-full overflow-hidden">
-            <div class="bg-gradient-to-r from-cyan-400 to-indigo-600 h-2 rounded-full" style="width:{{percent}}%"></div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="mt-6 glass-card rounded-2xl p-7">
-        <p class="text-base font-bold text-white">+ Create New Secure User</p>
-        <div class="flex gap-3 mt-4">
-          <input id="newUsername" placeholder="Username" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
-          <input id="newPassword" placeholder="Password" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
-        </div>
-        <button onclick="createUser()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create User</button>
-      </div>
-    </div>
-
-    <div id="tab-applications" class="hidden">
-      <h1 class="text-2xl font-black">Applications</h1>
-      <div class="glass-card mt-6 rounded-2xl p-7">
-        <div class="space-y-3 mb-6">{{app_list_html}}</div>
-        <div class="border-t border-white/10 pt-5">
-          <p class="text-base font-bold">+ Create New App</p>
-          <input id="newAppName" placeholder="App Name" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
-          <button onclick="createApp()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create Application</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-tool_users" class="hidden">
-      <h1 class="text-2xl font-black">Username / Pass Users ({{tool_user_count}}/{{limit_text}})</h1>
-      <div class="glass-card mt-6 rounded-2xl p-6">
-        <div class="space-y-3 text-xs font-mono">{{tool_users_list_html}}</div>
-      </div>
-    </div>
-
-    <div id="tab-keys" class="hidden">
-      <h1 class="text-2xl font-black">License Keys</h1>
-      <div class="glass-card mt-6 rounded-2xl p-6">
-        <div class="space-y-3 text-xs font-mono">{{keys_list_html}}</div>
-      </div>
-    </div>
-
-    <div id="tab-integrate" class="hidden">
-      <h1 class="text-2xl font-black">Secure Client Integration Code</h1>
-      <div class="glass-card mt-6 rounded-2xl p-7">
-        <p class="text-xs font-bold text-cyan-300">Encrypted Payload Verification Script (Anti-Fiddler/Anti-HTTP Debugger)</p>
-        <pre class="mt-4 bg-black/90 border border-white/10 rounded-xl p-5 text-xs font-mono overflow-x-auto text-green-400 leading-relaxed">
-import requests
-import subprocess
-import hashlib
-
-MY_APP_TOKEN = "{{active_token}}"
-AUTH_URL = "https://YOUR-DOMAIN.com/api/auth_login"
-
-def get_hwid():
-    try:
-        raw = subprocess.check_output('wmic baseboard get serialnumber', shell=True).decode()
-        return raw.split('\\n')[1].strip()
-    except Exception:
-        return "UNKNOWN_HWID"
-
-def secure_login(username, password):
-    hwid = get_hwid()
-    raw_sig = f"{username}:{hwid}:{MY_APP_TOKEN}"
-    sig = hashlib.sha256(raw_sig.encode()).hexdigest()
-    
-    payload = {
-        "username": username,
-        "password": password,
-        "hwid": hwid,
-        "token": MY_APP_TOKEN,
-        "sig": sig
-    }
-    
-    try:
-        res = requests.post(AUTH_URL, json=payload, timeout=10)
-        return res.json()
-    except Exception as e:
-        return {"status": "error", "message": "Connection Tampered"}
-</pre>
-      </div>
-    </div>
-
-    <div id="tab-billing" class="hidden">
-      <h1 class="text-2xl font-black">Billing / Plans</h1>
-      <div class="grid grid-cols-2 gap-6 mt-6">
-        <div class="glass-card rounded-2xl p-7">
-          <p class="font-bold text-sm text-zinc-300">FREE PLAN</p>
-          <p class="text-4xl font-black mt-2">₹0</p>
-          <p class="text-xs text-zinc-400 mt-3 leading-relaxed">✓ 10 Users / Keys Only<br>✓ 2 Applications (With Delete Option)<br>✓ HWID Lock</p>
-          <p class="mt-6 text-xs bg-zinc-800/80 rounded-full px-4 py-1.5 inline-block font-semibold">Current: {{plan_text}}</p>
-        </div>
-        <div class="glass-card rounded-2xl p-7 border-cyan-400/50 bg-cyan-500/10">
-          <p class="font-bold text-sm text-cyan-400">PRO UNLIMITED</p>
-          <p class="text-4xl font-black mt-2">₹499</p>
-          <p class="text-xs text-zinc-200 mt-3 leading-relaxed">✓ Unlimited Users<br>✓ Unlimited Apps<br>✓ Unlimited Keys<br>✓ Anti-Crack Engine</p>
-          <a href="https://wa.me/919999999999" target="_blank" class="mt-6 block text-center bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_25px_rgba(34,211,238,0.5)] transition">Buy on WhatsApp</a>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-""" + CURSOR_SCRIPT + """
-<script>
-function showTab(name) {
-    document.querySelectorAll('[id^="tab-"]').forEach(d => d.classList.add('hidden'));
-    document.getElementById('tab-' + name).classList.remove('hidden');
-    
-    document.querySelectorAll('#sidebar button').forEach(b => {
-        b.classList.remove('side-active');
-        b.classList.add('text-zinc-400');
-    });
-    
-    let btn = document.getElementById('btn-' + name);
-    if(btn) {
-        btn.classList.add('side-active');
-        btn.classList.remove('text-zinc-400');
-    }
-}
-
-async function createApp() {
-    let name = document.getElementById('newAppName').value.trim();
-    if(!name) {
-        alert('Enter Name!');
-        return;
-    }
-    let res = await fetch('/api/create_app', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name: name})
-    });
-    let data = await res.json();
-    if(data.error) {
-        alert(data.error);
-    } else {
-        alert('App Created! Token: ' + data.token);
-        location.reload();
-    }
-}
-
-async function deleteApp(token) {
-    if(!confirm('Are you sure you want to delete this application? Associated users might also be affected.')) return;
-    let res = await fetch('/api/delete_app', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({token: token})
-    });
-    let data = await res.json();
-    alert(data.message);
-    location.reload();
-}
-
-function copyToken() {
-    let t = document.getElementById('tokenDisplay').innerText;
-    navigator.clipboard.writeText(t);
-    alert('Copied: ' + t);
-}
-
-function selectApp(token) {
-    document.getElementById('tokenDisplay').innerText = token;
-}
-
-async function createUser() {
-    let u = document.getElementById('newUsername').value.trim();
-    let p = document.getElementById('newPassword').value.trim();
-    let token = document.getElementById('tokenDisplay').innerText;
-    
-    if(!u || !p) {
-        alert('Fill fields!');
-        return;
-    }
-    
-    let res = await fetch('/api/create_user', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username: u, password: p, app_token: token})
-    });
-    let data = await res.json();
-    alert(data.message);
-    location.reload();
-}
-
-async function deleteUser(username) {
-    if(!confirm('Delete ' + username + '?')) return;
-    let res = await fetch('/api/delete_user', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username: username})
-    });
-    let data = await res.json();
-    alert(data.message);
-    location.reload();
-}
-
-async function resetHwid(username) {
-    let res = await fetch('/api/reset_hwid', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username: username})
-    });
-    let data = await res.json();
-    alert(data.message);
-    location.reload();
-}
-
-async function toggleBan(username) {
-    let res = await fetch('/api/toggle_ban', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username: username})
-    });
-    let data = await res.json();
-    alert(data.message);
-    location.reload();
-}
-
-async function editUser(oldU, oldP) {
-    let newU = prompt("New Username:", oldU); 
-    if(newU === null) return;
-    
-    let newP = prompt("New Password:", oldP); 
-    if(newP === null) return;
-    
-    let res = await fetch('/api/edit_user', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            old_username: oldU, 
-            new_username: newU.trim(), 
-            new_password: newP.trim()
-        })
-    });
-    let data = await res.json();
-    alert(data.message);
-    location.reload();
-}
-</script>
 </body>
 </html>
 """
 
-# ==========================================
-# FLASK WEB ROUTES
-# ==========================================
+
+# ============================================================
+# LOGIN
+# ============================================================
+
+LOGIN = r"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HSL CORP Login</title>
+""" + COMMON_HEAD + r"""
+</head>
+
+<body class="min-h-screen flex items-center justify-center">
+
+<canvas id="particles"></canvas>
+<div class="grid-bg"></div>
+<div class="ambient"></div>
+<div class="vignette"></div>
+
+
+<div class="
+relative z-10
+w-[92%] max-w-[420px]
+glass
+rounded-3xl
+p-8
+text-center
+">
+
+<div class="
+w-16 h-16
+mx-auto
+rounded-2xl
+bg-gradient-to-r
+from-cyan-400 to-indigo-600
+flex items-center justify-center
+text-2xl
+shadow-[0_0_25px_rgba(0,234,255,.35)]
+">
+👾
+</div>
+
+<h1 class="
+mt-5
+text-2xl
+font-black
+bg-gradient-to-r
+from-cyan-300 to-indigo-400
+bg-clip-text
+text-transparent
+">
+HSL CORP
+</h1>
+
+<p class="
+mt-2
+text-xs text-zinc-500
+">
+Secure developer authentication
+</p>
+
+
+{% if oauth_enabled %}
+
+<a
+href="/auth/google"
+class="
+mt-8
+w-full
+flex items-center justify-center
+gap-3
+bg-white
+text-black
+rounded-xl
+py-3.5
+font-bold text-sm
+">
+<img
+src="https://www.svgrepo.com/show/475656/google-color.svg"
+width="20"
+height="20"
+alt="Google">
+Continue with Google
+</a>
+
+{% else %}
+
+<div class="
+mt-8
+p-4
+rounded-xl
+border border-yellow-500/20
+bg-yellow-500/5
+text-yellow-300
+text-xs
+">
+Google OAuth is not configured.
+Set GOOGLE_CLIENT_ID and
+GOOGLE_CLIENT_SECRET.
+</div>
+
+{% endif %}
+
+
+<a
+href="/"
+class="
+block
+mt-5
+text-xs
+text-zinc-500
+hover:text-cyan-300
+">
+← Back to home
+</a>
+
+</div>
+
+
+""" + CURSOR_SCRIPT + r"""
+
+</body>
+</html>
+"""
+
+
+# ============================================================
+# DASHBOARD
+# ============================================================
+
+DASHBOARD = r"""
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width,initial-scale=1">
+
+<title>HSL CORP Console</title>
+
+""" + COMMON_HEAD + r"""
+
+</head>
+
+
+<body class="min-h-screen">
+
+<canvas id="particles"></canvas>
+<div class="grid-bg"></div>
+<div class="ambient"></div>
+<div class="vignette"></div>
+
+
+<div class="
+relative z-10
+min-h-screen
+flex
+">
+
+
+<!-- SIDEBAR -->
+
+<aside class="
+w-[250px]
+shrink-0
+hidden md:flex
+flex-col
+border-r
+border-cyan-400/10
+bg-black/65
+backdrop-blur-xl
+">
+
+<div class="
+p-5
+border-b border-white/5
+flex items-center gap-3
+">
+
+<div class="
+w-9 h-9
+rounded-xl
+bg-gradient-to-r
+from-cyan-400 to-indigo-600
+flex items-center justify-center
+">
+👾
+</div>
+
+<div>
+
+<p class="font-black text-sm">
+HSL CORP
+</p>
+
+<p class="text-[9px] text-cyan-400">
+Developer Console
+</p>
+
+</div>
+
+</div>
+
+
+<nav
+id="sidebar"
+class="p-3 space-y-1 text-xs"
+>
+
+<button
+onclick="showTab('overview')"
+id="btn-overview"
+class="side-active w-full text-left rounded-xl px-4 py-3">
+🏠 Overview
+</button>
+
+<button
+onclick="showTab('applications')"
+id="btn-applications"
+class="w-full text-left text-zinc-400 rounded-xl px-4 py-3">
+📦 Applications
+</button>
+
+<button
+onclick="showTab('users')"
+id="btn-users"
+class="w-full text-left text-zinc-400 rounded-xl px-4 py-3">
+👤 Users
+</button>
+
+<button
+onclick="showTab('keys')"
+id="btn-keys"
+class="w-full text-left text-zinc-400 rounded-xl px-4 py-3">
+🔑 License Keys
+</button>
+
+<button
+onclick="showTab('integration')"
+id="btn-integration"
+class="w-full text-left text-zinc-400 rounded-xl px-4 py-3">
+🔌 Integration
+</button>
+
+<button
+onclick="showTab('billing')"
+id="btn-billing"
+class="w-full text-left text-zinc-400 rounded-xl px-4 py-3">
+💎 Billing
+</button>
+
+</nav>
+
+
+<div class="mt-auto p-4 border-t border-white/5">
+
+<p class="text-xs font-bold truncate">
+{{ email }}
+</p>
+
+<p class="
+text-[9px]
+mt-1
+{{ plan_color }}
+font-bold
+">
+{{ plan }}
+</p>
+
+<a
+href="/logout"
+class="
+block
+mt-4
+text-xs
+text-red-400
+">
+Logout
+</a>
+
+</div>
+
+</aside>
+
+
+<!-- MAIN -->
+
+<main class="flex-1 min-w-0">
+
+
+<header class="
+h-16
+border-b
+border-cyan-400/10
+bg-black/45
+backdrop-blur-xl
+flex items-center
+justify-between
+px-5 md:px-8
+">
+
+<div>
+
+<p class="text-xs font-bold text-cyan-300">
+HSL CONSOLE
+</p>
+
+<p class="text-[9px] text-zinc-600">
+{{ plan }}
+</p>
+
+</div>
+
+
+<a
+href="/logout"
+class="
+text-xs
+text-red-400
+md:hidden
+">
+Logout
+</a>
+
+</header>
+
+
+<div class="p-5 md:p-8">
+
+
+<!-- OVERVIEW -->
+
+<section id="tab-overview">
+
+<h1 class="text-2xl font-black">
+Dashboard Overview
+</h1>
+
+
+<div class="
+grid
+md:grid-cols-3
+gap-4
+mt-6
+">
+
+
+<div class="card rounded-2xl p-5">
+
+<p class="text-[9px] text-cyan-400 font-bold">
+APPLICATIONS
+</p>
+
+<p class="text-3xl font-black mt-2">
+{{ app_count }}
+</p>
+
+</div>
+
+
+<div class="card rounded-2xl p-5">
+
+<p class="text-[9px] text-indigo-400 font-bold">
+USERS
+</p>
+
+<p class="text-3xl font-black mt-2">
+{{ user_count }}
+</p>
+
+</div>
+
+
+<div class="card rounded-2xl p-5">
+
+<p class="text-[9px] text-cyan-400 font-bold">
+PLAN
+</p>
+
+<p class="text-xl font-black mt-3">
+{{ plan }}
+</p>
+
+</div>
+
+</div>
+
+
+<div class="card rounded-2xl p-6 mt-6">
+
+<h2 class="font-bold">
+Create Secure User
+</h2>
+
+<div class="
+grid
+md:grid-cols-2
+gap-3
+mt-4
+">
+
+<input
+id="newUsername"
+maxlength="40"
+placeholder="Username"
+class="
+bg-black/70
+border border-white/10
+rounded-xl
+px-4 py-3
+text-sm
+">
+
+<input
+id="newPassword"
+maxlength="128"
+type="password"
+placeholder="Password"
+class="
+bg-black/70
+border border-white/10
+rounded-xl
+px-4 py-3
+text-sm
+">
+
+</div>
+
+
+<select
+id="userApp"
+class="
+mt-3
+w-full
+bg-black/70
+border border-white/10
+rounded-xl
+px-4 py-3
+text-sm
+">
+
+{{ app_options }}
+
+</select>
+
+
+<button
+onclick="createUser()"
+class="
+mt-4
+w-full
+py-3
+rounded-xl
+font-bold
+text-sm
+bg-gradient-to-r
+from-cyan-400 to-indigo-600
+">
+Create User
+</button>
+
+</div>
+
+</section>
+
+
+<!-- APPLICATIONS -->
+
+<section
+id="tab-applications"
+class="hidden">
+
+<h1 class="text-2xl font-black">
+Applications
+</h1>
+
+
+<div class="card rounded-2xl p-6 mt-6">
+
+{{ app_list }}
+
+
+<div class="border-t border-white/5 mt-6 pt-6">
+
+<h2 class="font-bold">
+Create Application
+</h2>
+
+<input
+id="newAppName"
+maxlength="50"
+placeholder="Application name"
+class="
+mt-3
+w-full
+bg-black/70
+border border-white/10
+rounded-xl
+px-4 py-3
+text-sm
+">
+
+<button
+onclick="createApp()"
+class="
+mt-3
+w-full
+py-3
+rounded-xl
+font-bold
+bg-gradient-to-r
+from-cyan-400 to-indigo-600
+">
+Create Application
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- USERS -->
+
+<section
+id="tab-users"
+class="hidden">
+
+<h1 class="text-2xl font-black">
+Users
+</h1>
+
+<div class="mt-6 space-y-3">
+
+{{ users_list }}
+
+</div>
+
+</section>
+
+
+<!-- KEYS -->
+
+<section
+id="tab-keys"
+class="hidden">
+
+<h1 class="text-2xl font-black">
+License Keys
+</h1>
+
+<div class="card rounded-2xl p-6 mt-6">
+
+<p class="text-xs text-zinc-600">
+No key generator is enabled in this version.
+</p>
+
+</div>
+
+</section>
+
+
+<!-- INTEGRATION -->
+
+<section
+id="tab-integration"
+class="hidden">
+
+<h1 class="text-2xl font-black">
+API Integration
+</h1>
+
+
+<div class="card rounded-2xl p-6 mt-6">
+
+<p class="text-xs text-cyan-300 font-bold">
+Authentication Endpoint
+</p>
+
+<pre class="
+mt-4
+bg-black
+border border-white/5
+rounded-xl
+p-5
+overflow-x-auto
+text-xs
+text-green-400
+">POST /api/auth_login
+
+{
+    "username": "USER",
+    "password": "PASSWORD",
+    "hwid": "HWID",
+    "token": "APP_TOKEN"
+}</pre>
+
+<p class="
+mt-5
+text-xs
+text-zinc-500
+">
+Use HTTPS in production.
+Do not expose your Flask secret key or Google credentials
+inside the client application.
+</p>
+
+</div>
+
+</section>
+
+
+<!-- BILLING -->
+
+<section
+id="tab-billing"
+class="hidden">
+
+<h1 class="text-2xl font-black">
+Billing
+</h1>
+
+
+<div class="
+grid
+md:grid-cols-2
+gap-5
+mt-6
+">
+
+
+<div class="card rounded-2xl p-7">
+
+<p class="font-bold">
+FREE
+</p>
+
+<p class="text-4xl font-black mt-3">
+₹0
+</p>
+
+<p class="text-xs text-zinc-500 mt-4 leading-6">
+2 Applications<br>
+10 combined users/resources<br>
+HWID Lock
+</p>
+
+</div>
+
+
+<div class="
+card
+rounded-2xl
+p-7
+border-cyan-400/30
+">
+
+<p class="font-bold text-cyan-300">
+PRO UNLIMITED
+</p>
+
+<p class="text-4xl font-black mt-3">
+₹499
+</p>
+
+<p class="text-xs text-zinc-400 mt-4 leading-6">
+Unlimited Applications<br>
+Unlimited Users<br>
+Unlimited Resources
+</p>
+
+<a
+href="https://wa.me/919999999999"
+target="_blank"
+rel="noopener"
+class="
+block
+mt-6
+text-center
+py-3
+rounded-xl
+font-bold
+bg-gradient-to-r
+from-cyan-400 to-indigo-600
+">
+Contact / Upgrade
+</a>
+
+</div>
+
+</div>
+
+</section>
+
+
+</div>
+
+</main>
+
+</div>
+
+
+<script>
+
+function showTab(name){
+
+    document
+        .querySelectorAll("[id^='tab-']")
+        .forEach(el => {
+            el.classList.add("hidden");
+        });
+
+    const target =
+        document.getElementById(
+            "tab-" + name
+        );
+
+    if(target){
+        target.classList.remove("hidden");
+    }
+
+    document
+        .querySelectorAll("#sidebar button")
+        .forEach(btn => {
+            btn.classList.remove("side-active");
+        });
+
+    const button =
+        document.getElementById(
+            "btn-" + name
+        );
+
+    if(button){
+        button.classList.add("side-active");
+    }
+}
+
+
+async function api(url, options = {}){
+
+    try{
+
+        const response =
+            await fetch(url, {
+                credentials:"same-origin",
+                ...options
+            });
+
+        const data =
+            await response.json();
+
+        if(!response.ok){
+
+            throw new Error(
+                data.error ||
+                data.message ||
+                "Request failed"
+            );
+        }
+
+        return data;
+
+    }catch(error){
+
+        alert(error.message);
+        throw error;
+    }
+}
+
+
+async function createApp(){
+
+    const input =
+        document.getElementById(
+            "newAppName"
+        );
+
+    const name =
+        input.value.trim();
+
+    if(!name){
+        alert("Enter application name.");
+        return;
+    }
+
+    const data =
+        await api(
+            "/api/create_app",
+            {
+                method:"POST",
+                headers:{
+                    "Content-Type":
+                        "application/json"
+                },
+                body:JSON.stringify({
+                    name:name
+                })
+            }
+        );
+
+    alert(
+        "Application created.\nToken: " +
+        data.token
+    );
+
+    location.reload();
+}
+
+
+async function deleteApp(token){
+
+    if(
+        !confirm(
+            "Delete this application?"
+        )
+    ){
+        return;
+    }
+
+    const data =
+        await api(
+            "/api/delete_app",
+            {
+                method:"POST",
+                headers:{
+                    "Content-Type":
+                        "application/json"
+                },
+                body:JSON.stringify({
+                    token:token
+                })
+            }
+        );
+
+    alert(data.message);
+
+    location.reload();
+}
+
+
+async function createUser(){
+
+    const username =
+        document
+        .getElementById("newUsername")
+        .value
+        .trim();
+
+    const password =
+        document
+        .getElementById("newPassword")
+        .value
+        .trim();
+
+    const appToken =
+        document
+        .getElementById("userApp")
+        .value;
+
+    if(!username || !password || !appToken){
+
+        alert(
+            "Username, password and application are required."
+        );
+
+        return;
+    }
+
+    const data =
+        await api(
+            "/api/create_user",
+            {
+                method:"POST",
+                headers:{
+                    "Content-Type":
+                        "application/json"
+                },
+                body:JSON.stringify({
+                    username:username,
+                    password:password,
+                    app_token:appToken
+                })
+            }
+        );
+
+    alert(data.message);
+
+    location.reload();
+}
+
+
+async function deleteUser(username){
+
+    if(
+        !confirm(
+            "Delete " + username + "?"
+        )
+    ){
+        return;
+    }
+
+    const data =
+        await api(
+            "/api/delete_user",
+            {
+                method:"POST",
+                headers:{
+                    "Content-Type":
+                        "application/json"
+                },
+                body:JSON.stringify({
+                    username:username
+                })
+            }
+        );
+
+    alert(data.message);
+
+    location.reload();
+}
+
+
+async function resetHwid(username){
+
+    const data =
+        await api(
+            "/api/reset_hwid",
+            {
+                method:"POST",
+                headers:{
+                    "Content-Type":
+                        "application/json"
+                },
+                body:JSON.stringify({
+                    username:username
+                })
+            }
+        );
+
+    alert(data.message);
+
+    location.reload();
+}
+
+
+async function toggleBan(username){
+
+    const data =
+        await api(
+            "/api/toggle_ban",
+            {
+                method:"POST",
+                headers:{
+                    "Content-Type":
+                        "application/json"
+                },
+                body:JSON.stringify({
+                    username:username
+                })
+            }
+        );
+
+    alert(data.message);
+
+    location.reload();
+}
+
+</script>
+
+
+""" + CURSOR_SCRIPT + r"""
+
+</body>
+</html>
+"""
+
+
+# ============================================================
+# ROUTES
+# ============================================================
 
 @app.route("/")
 def home():
     return render_template_string(LANDING)
 
+
 @app.route("/login")
-def login():
-    return render_template_string(LOGIN)
+def login_page():
+
+    return render_template_string(
+        LOGIN,
+        oauth_enabled=bool(google)
+    )
+
+
+@app.route("/favicon.ico")
+def favicon():
+    # Explicitly prevents the common browser 404.
+    return "", 204
+
 
 @app.route("/auth/google")
-@rate_limit(max_requests=5, window_seconds=60)
+@rate_limit(
+    max_requests=5,
+    window_seconds=60
+)
 def auth_google():
-    redirect_uri = request.url_root.rstrip("/") + "/auth/callback"
-    return google.authorize_redirect(redirect_uri)
+
+    if google is None:
+        return jsonify({
+            "error":
+                "Google OAuth is not configured."
+        }), 503
+
+    redirect_uri = (
+        request.url_root.rstrip("/")
+        + "/auth/callback"
+    )
+
+    return google.authorize_redirect(
+        redirect_uri
+    )
+
 
 @app.route("/auth/callback")
-def callback():
-    try:
-        token = google.authorize_access_token()
-        user = token.get("userinfo") or google.get("https://openidconnect.googleapis.com/v1/userinfo").json()
-        session["user"] = user
-        return redirect("/dashboard")
-    except Exception:
+def auth_callback():
+
+    if google is None:
         return redirect("/login")
+
+    try:
+
+        token = google.authorize_access_token()
+
+        user = token.get("userinfo")
+
+        if not user:
+
+            response = google.get(
+                "https://openidconnect.googleapis.com/v1/userinfo"
+            )
+
+            response.raise_for_status()
+
+            user = response.json()
+
+        email = user.get("email")
+
+        if not email:
+            return redirect("/login")
+
+        session.clear()
+
+        session["user"] = {
+            "email": email,
+            "name": user.get(
+                "name",
+                email.split("@")[0]
+            ),
+            "picture": user.get("picture", "")
+        }
+
+        session.permanent = True
+
+        return redirect("/dashboard")
+
+    except Exception as exc:
+
+        app.logger.exception(
+            "Google OAuth callback failed: %s",
+            exc
+        )
+
+        return redirect(
+            "/login?error=oauth_failed"
+        )
+
+
+# ============================================================
+# DASHBOARD
+# ============================================================
 
 @app.route("/dashboard")
-def dash():
-    if "user" not in session:
+def dashboard():
+
+    if not is_logged_in():
         return redirect("/login")
-        
-    email = session["user"]["email"]
-    is_paid = email in PAID_USERS
-    limit_text = "Unlimited" if is_paid else "10"
-    plan_text = "PRO UNLIMITED" if is_paid else "FREE"
-    plan_color = "text-green-400" if is_paid else "text-yellow-400"
-    
-    apps = db("SELECT * FROM apps WHERE owner_email=?", (email,), True)
-    
-    if not apps:
-        app_options = "<option>No Apps Created</option>"
-        active_token = "Create an app to get Token"
-        app_list_html = "<p class='text-zinc-500 text-sm'>No apps yet - Create one below</p>"
-    else:
-        app_options = "".join([
-            f"<option value='{a[2]}'>{a[1]}</option>" 
-            for a in apps
-        ])
-        active_token = apps[0][2]
-        app_list_html = "".join([
-            f"""<div class='bg-black/80 border border-white/10 rounded-xl px-4 py-3 flex justify-between items-center mb-2'>
-                <div>
-                    <span class='font-bold text-white'>{a[1]}</span><br>
-                    <span class='text-xs text-zinc-500 font-mono'>{a[2][:25]}...</span>
-                </div>
-                <button onclick="deleteApp('{a[2]}')" class='bg-red-900/50 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs hover:bg-red-800 transition text-red-300 font-semibold'>Delete App</button>
-            </div>"""
-            for a in apps
-        ])
-        
-    keys = db("SELECT * FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
-    
-    if keys:
-        keys_list_html = "".join([
-            f"<div class='flex justify-between bg-black/80 border border-white/10 rounded-xl px-4 py-3'><span>{k[1]}</span><span class='{'text-green-400' if k[3] == 'unused' else 'text-red-400'}'>● {k[3]}</span></div>"
-            for k in keys
-        ])
-    else:
-        keys_list_html = "<p class='text-center text-zinc-600 text-xs mt-10'>No keys generated yet.</p>"
 
-    tool_users = db("SELECT * FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
-    tool_user_count = len(tool_users)
-    
-    if tool_user_count == 0:
-        percent = 10
-    else:
-        max_limit = 999999 if is_paid else 10
-        percent = min(int(tool_user_count / max_limit * 100), 100)
-    
-    tool_users_list_html = ""
-    for u in tool_users:
-        hwid_short = (u[5][:15] + "...") if u[5] else "Not Bound"
-        status_color = "text-green-400" if u[4] == "active" else "text-red-400"
-        ban_text = "Ban" if u[4] == "active" else "Unban"
-        
-        tool_users_list_html += f"""
-        <div class='flex justify-between items-center bg-black/80 border border-white/10 rounded-xl px-4 py-3 mb-2'>
-            <div>
-                <span class='text-white font-bold'>{u[1]}</span><span class='text-zinc-500'> / {u[2]}</span><br>
-                <span class='text-[10px] text-zinc-500'>HWID: {hwid_short} | Status: <span class='{status_color}'>{u[4].upper()}</span></span>
-            </div>
-            <div class='flex gap-2 flex-wrap justify-end max-w-[60%]'>
-                <button onclick="editUser('{u[1]}','{u[2]}')" class='bg-blue-900/50 border border-blue-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-blue-800 transition'>Edit</button>
-                <button onclick="toggleBan('{u[1]}')" class='bg-yellow-900/50 border border-yellow-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-yellow-800 transition'>{ban_text}</button>
-                <button onclick="resetHwid('{u[1]}')" class='bg-zinc-800 border border-white/10 px-3 py-1 rounded-lg text-[10px] hover:bg-zinc-700 transition'>Reset HWID</button>
-                <button onclick="deleteUser('{u[1]}')" class='bg-red-900/50 border border-red-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-red-800 transition'>Delete</button>
-            </div>
-        </div>
+    email = current_email()
+
+    paid = is_paid(email)
+
+    plan = (
+        "PRO UNLIMITED"
+        if paid
+        else
+        "FREE"
+    )
+
+    plan_color = (
+        "text-green-400"
+        if paid
+        else
+        "text-yellow-400"
+    )
+
+    apps = db_fetchall(
         """
-        
-    if not tool_users_list_html:
-        tool_users_list_html = "<p class='text-center text-zinc-600 text-xs mt-10'>No registered users found.</p>"
-
-    html = (
-        DASHBOARD_HTML.replace("{{name}}", session["user"].get("name", "User"))
-        .replace("{{email}}", email)
-        .replace("{{app_options}}", app_options)
-        .replace("{{active_token}}", active_token)
-        .replace("{{app_list_html}}", app_list_html)
-        .replace("{{keys_list_html}}", keys_list_html)
-        .replace("{{tool_user_count}}", str(tool_user_count))
-        .replace("{{limit_text}}", limit_text)
-        .replace("{{plan_text}}", plan_text)
-        .replace("{{plan_color}}", plan_color)
-        .replace("{{percent}}", str(percent))
-        .replace("{{tool_users_list_html}}", tool_users_list_html)
+        SELECT *
+        FROM apps
+        WHERE owner_email=?
+        ORDER BY id DESC
+        """,
+        (email,)
     )
-    return render_template_string(html)
 
-# ==========================================
-# REST API ENDPOINTS
-# ==========================================
+    app_count = len(apps)
 
-def check_limit(email):
-    if email in PAID_USERS:
-        return False
-        
-    tool_users = db("SELECT COUNT(*) FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
-    keys = db("SELECT COUNT(*) FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
-    
-    user_count = tool_users[0][0] if tool_users else 0
-    key_count = keys[0][0] if keys else 0
-    
-    return (user_count + key_count) >= 10
+    app_tokens = [
+        row["token"]
+        for row in apps
+    ]
 
-@app.route("/api/create_app", methods=["POST"])
-def api_create_app():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-        
-    email = session["user"]["email"]
-    apps = db("SELECT COUNT(*) FROM apps WHERE owner_email=?", (email,), True)
-    
-    # Free Plan limit set to 2 Applications max
-    if email not in PAID_USERS and apps[0][0] >= 2:
-        return jsonify({"error": "Free Plan limit reached. Max 2 applications allowed. Delete an existing app to create a new one."})
-        
-    name = request.json.get("name", "").strip()
-    if not name:
-        return jsonify({"error": "Invalid app name"})
-        
-    random_str = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
-    token = f"HSL_{random_str}"
-    
-    db(
-        "INSERT INTO apps (name, token, owner_email, created_at) VALUES (?,?,?,?)", 
-        (name, token, email, datetime.now().isoformat())
-    )
-    
-    return jsonify({"token": token})
+    user_count = 0
 
-@app.route("/api/delete_app", methods=["POST"])
-def api_delete_app():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-        
-    email = session["user"]["email"]
-    token = request.json.get("token")
-    
-    # Verify ownership before deleting
-    app_check = db("SELECT * FROM apps WHERE token=? AND owner_email=?", (token, email), True)
-    if not app_check:
-        return jsonify({"message": "App not found or unauthorized!"})
-        
-    db("DELETE FROM apps WHERE token=?", (token,))
-    db("DELETE FROM tool_users WHERE app_token=?", (token,))
-    
-    return jsonify({"message": "Application deleted successfully."})
+    if app_tokens:
 
-@app.route("/api/create_user", methods=["POST"])
-def api_create_user():
-    data = request.json or {}
-    app_token = data.get("app_token")
-    username = data.get("username", "").strip()
-    password = data.get("password", "").strip()
-
-    if not username or not password or not app_token:
-        return jsonify({"message": "Missing required fields!"})
-
-    app_data = db("SELECT owner_email FROM apps WHERE token=?", (app_token,), True)
-    if not app_data:
-        return jsonify({"message": "Invalid App Token!"})
-
-    email = app_data[0][0]
-    if check_limit(email):
-        return jsonify({"message": "Plan limit reached!"})
-
-    try:
-        db(
-            "INSERT INTO tool_users (username, password, app_token, status, created_at) VALUES (?,?,?,?,?)",
-            (username, password, app_token, "active", datetime.now().isoformat())
+        placeholders = ",".join(
+            "?"
+            for _ in app_tokens
         )
-        return jsonify({"message": f"User Created: {username}"}), 200
-    except Exception:
-        return jsonify({"message": "Username already exists!"})
 
-@app.route("/api/delete_user", methods=["POST"])
-def api_delete_user():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
-        
-    username = request.json.get("username")
-    db("DELETE FROM tool_users WHERE username=?", (username,))
-    return jsonify({"message": "Deleted successfully"})
+        row = db_fetchone(
+            f"""
+            SELECT COUNT(*) AS count
+            FROM tool_users
+            WHERE app_token IN ({placeholders})
+            """,
+            tuple(app_tokens)
+        )
 
-@app.route("/api/reset_hwid", methods=["POST"])
-def api_reset_hwid():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
-        
-    username = request.json.get("username")
-    db("UPDATE tool_users SET hwid=NULL, status='active' WHERE username=?", (username,))
-    return jsonify({"message": f"HWID Reset for {username}"})
+        user_count = row["count"] if row else 0
 
-@app.route("/api/toggle_ban", methods=["POST"])
-def api_toggle_ban():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
-        
-    username = request.json.get("username")
-    res = db("SELECT status FROM tool_users WHERE username=?", (username,), True)
-    
-    if not res: 
-        return jsonify({"message": "User not found"})
-        
-    new_status = "banned" if res[0][0] == "active" else "active"
-    db("UPDATE tool_users SET status=? WHERE username=?", (new_status, username))
-    
-    return jsonify({"message": f"{username} status updated to {new_status.upper()}"})
 
-@app.route("/api/edit_user", methods=["POST"])
-def api_edit_user():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
-        
-    old_u = request.json.get("old_username")
-    new_u = request.json.get("new_username") or old_u
-    new_p = request.json.get("new_password")
-    
-    try:
-        db("UPDATE tool_users SET username=?, password=? WHERE username=?", (new_u, new_p, old_u))
-        return jsonify({"message": f"Updated {old_u}"})
-    except Exception:
-        return jsonify({"message": "Update failed."})
+    if apps:
 
-@app.route("/api/auth_login", methods=["POST"])
-@rate_limit(max_requests=10, window_seconds=60)
-def api_auth_login():
-    data = request.json or {}
-    
-    username = data.get("username")
-    password = data.get("password")
-    hwid = data.get("hwid")
-    token = data.get("token")
-    client_sig = data.get("sig")
-    
-    if not username or not password or not token or not hwid:
+        app_options = ""
+
+        for app_row in apps:
+
+            app_options += (
+                "<option value=\""
+                + escape(app_row["token"], quote=True)
+                + "\">"
+                + escape(app_row["name"])
+                + "</option>"
+            )
+
+    else:
+
+        app_options = (
+            "<option value=\"\">"
+            "No applications"
+            "</option>"
+        )
+
+
+    # --------------------------------------------
+    # APPLICATION LIST
+    # --------------------------------------------
+
+    if not apps:
+
+        app_list = (
+            "<p class='text-xs text-zinc-600'>"
+            "No applications created yet."
+            "</p>"
+        )
+
+    else:
+
+        chunks = []
+
+        for app_row in apps:
+
+            token = escape(
+                app_row["token"],
+                quote=True
+            )
+
+            name = escape(
+                app_row["name"]
+            )
+
+            short_token = escape(
+                app_row["token"][:22]
+            )
+
+            chunks.append(
+                f"""
+                <div class="
+                    flex flex-col md:flex-row
+                    md:items-center
+                    justify-between
+                    gap-4
+                    p-4
+                    mb-3
+                    rounded-xl
+                    bg-black/60
+                    border border-white/5
+                ">
+
+                    <div>
+
+                        <p class="
+                            font-bold
+                            text-sm
+                        ">
+                            {name}
+                        </p>
+
+                        <p class="
+                            text-[10px]
+                            text-zinc-600
+                            font-mono
+                            mt-1
+                        ">
+                            {short_token}...
+                        </p>
+
+                    </div>
+
+                    <button
+                        onclick="deleteApp('{token}')"
+                        class="
+                            px-4 py-2
+                            rounded-lg
+                            text-xs
+                            font-bold
+                            text-red-300
+                            bg-red-500/5
+                            border border-red-500/20
+                        ">
+                        Delete
+                    </button>
+
+                </div>
+                """
+            )
+
+        app_list = "".join(chunks)
+
+
+    # --------------------------------------------
+    # USERS
+    # --------------------------------------------
+
+    if app_tokens:
+
+        placeholders = ",".join(
+            "?"
+            for _ in app_tokens
+        )
+
+        users = db_fetchall(
+            f"""
+            SELECT *
+            FROM tool_users
+            WHERE app_token IN ({placeholders})
+            ORDER BY id DESC
+            """,
+            tuple(app_tokens)
+        )
+
+    else:
+
+        users = []
+
+
+    if not users:
+
+        users_list = (
+            "<div class='card rounded-xl p-6'>"
+            "<p class='text-xs text-zinc-600'>"
+            "No users found."
+            "</p>"
+            "</div>"
+        )
+
+    else:
+
+        user_chunks = []
+
+        for user in users:
+
+            username = escape(
+                user["username"],
+                quote=True
+            )
+
+            status = user["status"]
+
+            status_color = (
+                "text-green-400"
+                if status == "active"
+                else
+                "text-red-400"
+            )
+
+            hwid = (
+                user["hwid"][:18] + "..."
+                if user["hwid"]
+                else
+                "Not Bound"
+            )
+
+            hwid = escape(hwid)
+
+            user_chunks.append(
+                f"""
+                <div class="
+                    card
+                    rounded-xl
+                    p-4
+                    flex flex-col
+                    lg:flex-row
+                    lg:items-center
+                    justify-between
+                    gap-4
+                ">
+
+                    <div>
+
+                        <p class="font-bold text-sm">
+                            {username}
+                        </p>
+
+                        <p class="
+                            text-[10px]
+                            text-zinc-600
+                            mt-1
+                        ">
+                            HWID:
+                            {hwid}
+                        </p>
+
+                        <p class="
+                            text-[10px]
+                            mt-1
+                            {status_color}
+                        ">
+                            {escape(status.upper())}
+                        </p>
+
+                    </div>
+
+                    <div class="
+                        flex
+                        flex-wrap
+                        gap-2
+                    ">
+
+                        <button
+                            onclick="toggleBan('{username}')"
+                            class="
+                                px-3 py-2
+                                rounded-lg
+                                text-[10px]
+                                bg-yellow-500/5
+                                border border-yellow-500/20
+                            ">
+                            Ban / Unban
+                        </button>
+
+                        <button
+                            onclick="resetHwid('{username}')"
+                            class="
+                                px-3 py-2
+                                rounded-lg
+                                text-[10px]
+                                bg-zinc-900
+                                border border-white/10
+                            ">
+                            Reset HWID
+                        </button>
+
+                        <button
+                            onclick="deleteUser('{username}')"
+                            class="
+                                px-3 py-2
+                                rounded-lg
+                                text-[10px]
+                                text-red-300
+                                bg-red-500/5
+                                border border-red-500/20
+                            ">
+                            Delete
+                        </button>
+
+                    </div>
+
+                </div>
+                """
+            )
+
+        users_list = "".join(
+            user_chunks
+        )
+
+
+    return render_template_string(
+        DASHBOARD,
+        email=escape(email),
+        plan=plan,
+        plan_color=plan_color,
+        app_count=app_count,
+        user_count=user_count,
+        app_options=app_options,
+        app_list=app_list,
+        users_list=users_list
+    )
+
+
+# ============================================================
+# CREATE APP
+# ============================================================
+
+@app.route(
+    "/api/create_app",
+    methods=["POST"]
+)
+@rate_limit(15, 60)
+def create_app():
+
+    auth_error = require_login()
+
+    if auth_error:
+        return auth_error
+
+    data = json_body()
+
+    name = clean_text(
+        data.get("name"),
+        MAX_APP_NAME
+    )
+
+    if not name:
         return jsonify({
-            "status": "invalid", 
-            "message": "Malformed request parameters"
+            "error": "Invalid application name."
         }), 400
 
-    expected_sig = hashlib.sha256(f"{username}:{hwid}:{token}".encode()).hexdigest()
-    if client_sig and client_sig != expected_sig:
+    email = current_email()
+
+    count_row = db_fetchone(
+        """
+        SELECT COUNT(*) AS count
+        FROM apps
+        WHERE owner_email=?
+        """,
+        (email,)
+    )
+
+    count = (
+        count_row["count"]
+        if count_row
+        else 0
+    )
+
+    if not is_paid(email) and count >= FREE_APP_LIMIT:
+
         return jsonify({
-            "status": "tampered", 
-            "message": "Request payload tampered!"
+            "error":
+                "Free plan limit reached. "
+                "Maximum 2 applications."
         }), 403
 
-    res = db("SELECT * FROM tool_users WHERE username=? AND password=? AND app_token=?", (username, password, token), True)
-    if not res:
+
+    token = generate_app_token()
+
+    try:
+
+        db_execute(
+            """
+            INSERT INTO apps
+            (name, token, owner_email, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                name,
+                token,
+                email,
+                now_iso()
+            )
+        )
+
+    except sqlite3.IntegrityError:
+
         return jsonify({
-            "status": "invalid", 
-            "message": "Incorrect credentials"
-        })
-        
-    user_row = res[0]
-    if user_row[4] == "banned":
+            "error":
+                "Could not generate unique application token."
+        }), 500
+
+
+    return jsonify({
+        "success": True,
+        "token": token
+    })
+
+
+# ============================================================
+# DELETE APP
+# ============================================================
+
+@app.route(
+    "/api/delete_app",
+    methods=["POST"]
+)
+@rate_limit(15, 60)
+def delete_app():
+
+    auth_error = require_login()
+
+    if auth_error:
+        return auth_error
+
+    data = json_body()
+
+    token = clean_text(
+        data.get("token"),
+        100
+    )
+
+    if not token:
         return jsonify({
-            "status": "banned", 
-            "message": "Account suspended"
-        })
-        
-    if not user_row[5]:
-        db("UPDATE tool_users SET hwid=?, status='active' WHERE username=?", (hwid, username))
+            "error": "Missing application token."
+        }), 400
+
+    email = current_email()
+
+    app_row = db_fetchone(
+        """
+        SELECT id
+        FROM apps
+        WHERE token=?
+        AND owner_email=?
+        """,
+        (token, email)
+    )
+
+    if not app_row:
+
         return jsonify({
-            "status": "valid", 
-            "message": "HWID Bound Successfully"
-        })
-    else:
-        if user_row[5] == hwid:
+            "error":
+                "Application not found."
+        }), 404
+
+
+    db_execute(
+        "DELETE FROM tool_users WHERE app_token=?",
+        (token,)
+    )
+
+    db_execute(
+        "DELETE FROM keys WHERE app_token=?",
+        (token,)
+    )
+
+    db_execute(
+        "DELETE FROM apps WHERE token=?",
+        (token,)
+    )
+
+
+    return jsonify({
+        "success": True,
+        "message":
+            "Application deleted successfully."
+    })
+
+
+# ============================================================
+# CREATE USER
+# ============================================================
+
+@app.route(
+    "/api/create_user",
+    methods=["POST"]
+)
+@rate_limit(15, 60)
+def create_user():
+
+    auth_error = require_login()
+
+    if auth_error:
+        return auth_error
+
+    data = json_body()
+
+    username = clean_text(
+        data.get("username"),
+        MAX_USERNAME
+    )
+
+    password = clean_text(
+        data.get("password"),
+        MAX_PASSWORD
+    )
+
+    app_token = clean_text(
+        data.get("app_token"),
+        100
+    )
+
+    if not username or not password or not app_token:
+
+        return jsonify({
+            "message":
+                "Username, password and application are required."
+        }), 400
+
+
+    email = current_email()
+
+    # Important:
+    # verify that this application belongs
+    # to the logged-in account.
+
+    app_row = db_fetchone(
+        """
+        SELECT id
+        FROM apps
+        WHERE token=?
+        AND owner_email=?
+        """,
+        (app_token, email)
+    )
+
+    if not app_row:
+
+        return jsonify({
+            "message":
+                "Application not found or unauthorized."
+        }), 403
+
+
+    # --------------------------------------------
+    # LIMIT
+    # --------------------------------------------
+
+    if not is_paid(email):
+
+        row = db_fetchone(
+            """
+            SELECT COUNT(*) AS count
+            FROM tool_users
+            WHERE app_token IN (
+                SELECT token
+                FROM apps
+                WHERE owner_email=?
+            )
+            """,
+            (email,)
+        )
+
+        user_count = (
+            row["count"]
+            if row
+            else 0
+        )
+
+        if user_count >= FREE_RESOURCE_LIMIT:
+
             return jsonify({
-                "status": "valid", 
-                "message": "Authentication Success"
-            })
-        else:
-            return jsonify({
-                "status": "hwid_mismatch", 
-                "message": "Hardware mismatch detected"
-            })
+                "message":
+                    "Free plan user limit reached."
+            }), 403
+
+
+    # --------------------------------------------
+    # DUPLICATE
+    # --------------------------------------------
+
+    existing = db_fetchone(
+        """
+        SELECT id
+        FROM tool_users
+        WHERE username=?
+        """,
+        (username,)
+    )
+
+    if existing:
+
+        return jsonify({
+            "message":
+                "Username already exists."
+        }), 409
+
+
+    password_hash = hash_password(
+        password
+    )
+
+
+    try:
+
+        db_execute(
+            """
+            INSERT INTO tool_users
+            (
+                username,
+                password,
+                app_token,
+                status,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                username,
+                password_hash,
+                app_token,
+                "active",
+                now_iso()
+            )
+        )
+
+    except sqlite3.IntegrityError:
+
+        return jsonify({
+            "message":
+                "Username already exists."
+        }), 409
+
+
+    return jsonify({
+        "success": True,
+        "message":
+            f"User created: {username}"
+    })
+
+
+# ============================================================
+# USER OWNERSHIP HELPER
+# ============================================================
+
+def get_owned_user(username):
+
+    email = current_email()
+
+    return db_fetchone(
+        """
+        SELECT
+            tool_users.*
+        FROM tool_users
+        INNER JOIN apps
+            ON apps.token=tool_users.app_token
+        WHERE tool_users.username=?
+        AND apps.owner_email=?
+        """,
+        (
+            username,
+            email
+        )
+    )
+
+
+# ============================================================
+# DELETE USER
+# ============================================================
+
+@app.route(
+    "/api/delete_user",
+    methods=["POST"]
+)
+@rate_limit(20, 60)
+def delete_user():
+
+    auth_error = require_login()
+
+    if auth_error:
+        return auth_error
+
+    username = clean_text(
+        json_body().get("username"),
+        MAX_USERNAME
+    )
+
+    user = get_owned_user(
+        username
+    )
+
+    if not user:
+
+        return jsonify({
+            "error":
+                "User not found."
+        }), 404
+
+
+    db_execute(
+        """
+        DELETE FROM tool_users
+        WHERE username=?
+        """,
+        (username,)
+    )
+
+
+    return jsonify({
+        "success": True,
+        "message":
+            "User deleted successfully."
+    })
+
+
+# ============================================================
+# RESET HWID
+# ============================================================
+
+@app.route(
+    "/api/reset_hwid",
+    methods=["POST"]
+)
+@rate_limit(20, 60)
+def reset_hwid():
+
+    auth_error = require_login()
+
+    if auth_error:
+        return auth_error
+
+    username = clean_text(
+        json_body().get("username"),
+        MAX_USERNAME
+    )
+
+    user = get_owned_user(
+        username
+    )
+
+    if not user:
+
+        return jsonify({
+            "error":
+                "User not found."
+        }), 404
+
+
+    db_execute(
+        """
+        UPDATE tool_users
+        SET hwid=NULL,
+            status='active'
+        WHERE username=?
+        """,
+        (username,)
+    )
+
+
+    return jsonify({
+        "success": True,
+        "message":
+            f"HWID reset for {username}."
+    })
+
+
+# ============================================================
+# BAN / UNBAN
+# ============================================================
+
+@app.route(
+    "/api/toggle_ban",
+    methods=["POST"]
+)
+@rate_limit(20, 60)
+def toggle_ban():
+
+    auth_error = require_login()
+
+    if auth_error:
+        return auth_error
+
+    username = clean_text(
+        json_body().get("username"),
+        MAX_USERNAME
+    )
+
+    user = get_owned_user(
+        username
+    )
+
+    if not user:
+
+        return jsonify({
+            "error":
+                "User not found."
+        }), 404
+
+
+    new_status = (
+        "banned"
+        if user["status"] == "active"
+        else
+        "active"
+    )
+
+
+    db_execute(
+        """
+        UPDATE tool_users
+        SET status=?
+        WHERE username=?
+        """,
+        (
+            new_status,
+            username
+        )
+    )
+
+
+    return jsonify({
+        "success": True,
+        "message":
+            f"{username} is now {new_status.upper()}."
+    })
+
+
+# ============================================================
+# AUTH LOGIN API
+# ============================================================
+
+@app.route(
+    "/api/auth_login",
+    methods=["POST"]
+)
+@rate_limit(10, 60)
+def auth_login():
+
+    data = json_body()
+
+    username = clean_text(
+        data.get("username"),
+        MAX_USERNAME
+    )
+
+    password = clean_text(
+        data.get("password"),
+        MAX_PASSWORD
+    )
+
+    hwid = clean_text(
+        data.get("hwid"),
+        255
+    )
+
+    token = clean_text(
+        data.get("token"),
+        100
+    )
+
+
+    if not username or not password or not hwid or not token:
+
+        return jsonify({
+            "status": "invalid",
+            "message":
+                "Malformed request parameters."
+        }), 400
+
+
+    user = db_fetchone(
+        """
+        SELECT *
+        FROM tool_users
+        WHERE username=?
+        AND app_token=?
+        """,
+        (
+            username,
+            token
+        )
+    )
+
+
+    if not user:
+
+        return jsonify({
+            "status": "invalid",
+            "message":
+                "Incorrect credentials."
+        }), 401
+
+
+    if user["status"] == "banned":
+
+        return jsonify({
+            "status": "banned",
+            "message":
+                "Account suspended."
+        }), 403
+
+
+    if not verify_password(
+        user["password"],
+        password
+    ):
+
+        return jsonify({
+            "status": "invalid",
+            "message":
+                "Incorrect credentials."
+        }), 401
+
+
+    # --------------------------------------------
+    # FIRST HWID BIND
+    # --------------------------------------------
+
+    if not user["hwid"]:
+
+        db_execute(
+            """
+            UPDATE tool_users
+            SET hwid=?
+            WHERE id=?
+            """,
+            (
+                hwid,
+                user["id"]
+            )
+        )
+
+        return jsonify({
+            "status": "valid",
+            "message":
+                "HWID bound successfully."
+        })
+
+
+    # --------------------------------------------
+    # HWID MATCH
+    # --------------------------------------------
+
+    if secrets.compare_digest(
+        str(user["hwid"]),
+        str(hwid)
+    ):
+
+        return jsonify({
+            "status": "valid",
+            "message":
+                "Authentication successful."
+        })
+
+
+    return jsonify({
+        "status": "hwid_mismatch",
+        "message":
+            "Hardware mismatch detected."
+    }), 403
+
+
+# ============================================================
+# LOGOUT
+# ============================================================
 
 @app.route("/logout")
 def logout():
+
     session.clear()
+
     return redirect("/")
 
-# ==========================================
-# SERVER RUNNER
-# ==========================================
+
+# ============================================================
+# 404
+# ============================================================
+
+@app.errorhandler(404)
+def not_found(error):
+
+    if request.path.startswith("/api/"):
+
+        return jsonify({
+            "error":
+                "API endpoint not found.",
+            "path":
+                request.path
+        }), 404
+
+    return (
+        "<h1 style='font-family:Arial;"
+        "background:#03050a;color:#00eaff;"
+        "height:100vh;margin:0;padding:50px'>"
+        "404 — Page Not Found"
+        "</h1>",
+        404
+    )
+
+
+# ============================================================
+# 405
+# ============================================================
+
+@app.errorhandler(405)
+def method_not_allowed(error):
+
+    if request.path.startswith("/api/"):
+
+        return jsonify({
+            "error":
+                "HTTP method not allowed."
+        }), 405
+
+    return "Method Not Allowed", 405
+
+
+# ============================================================
+# 500
+# ============================================================
+
+@app.errorhandler(500)
+def server_error(error):
+
+    app.logger.exception(
+        "Internal server error"
+    )
+
+    if request.path.startswith("/api/"):
+
+        return jsonify({
+            "error":
+                "Internal server error."
+        }), 500
+
+    return (
+        "<h1 style='font-family:Arial;"
+        "background:#03050a;color:#ff1744;"
+        "height:100vh;margin:0;padding:50px'>"
+        "500 — Internal Server Error"
+        "</h1>",
+        500
+    )
+
+
+# ============================================================
+# RUN
+# ============================================================
 
 if __name__ == "__main__":
+
+    port = int(
+        os.environ.get(
+            "PORT",
+            "5000"
+        )
+    )
+
+    app.logger.info(
+        "HSL CORP starting on port %s",
+        port
+    )
+
     app.run(
         host="0.0.0.0",
-        port=5000, 
-        debug=False
+        port=port,
+        debug=False,
+        threaded=True
     )
