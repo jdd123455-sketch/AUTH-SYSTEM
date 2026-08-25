@@ -411,7 +411,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div id="tab-overview">
       <h1 class="text-2xl font-black text-white tracking-wide">SYSTEM METRICS & OVERVIEW</h1>
       
-      <!-- KeyAuth Style Brutal Stats Cards -->
       <div class="grid grid-cols-4 gap-4 mt-6">
         <div class="glass-card rounded-xl p-5">
           <p class="text-[9px] font-extrabold text-red-400">TOTAL APPS</p>
@@ -631,7 +630,7 @@ async function editUser(oldU, oldP) {
 """
 
 # ==========================================
-# ROUTES
+# ROUTES & APIs
 # ==========================================
 
 @app.route("/")
@@ -811,6 +810,37 @@ def api_edit_user():
         db("UPDATE tool_users SET username=?, password=? WHERE username=?", (new_u, new_p, old_u))
         return jsonify({"message": f"Credentials updated for {old_u}"})
     except: return jsonify({"message": "Update failed."})
+
+# External Client Authentication API Endpoint (Used by Anti-Crack Payload)
+@app.route("/api/auth_login", methods=["POST"])
+def api_auth_login():
+    data = request.json or {}
+    username = data.get("username")
+    password = data.get("password")
+    hwid = data.get("hwid")
+    token = data.get("token")
+    
+    if not all([username, password, hwid, token]):
+        return jsonify({"status": "failed", "message": "Missing authentication parameters."}), 400
+        
+    user = db("SELECT * FROM tool_users WHERE username=? AND password=? AND app_token=?", (username, password, token), True)
+    if not user:
+        return jsonify({"status": "failed", "message": "Invalid username or password."}), 401
+        
+    u_data = user[0]
+    # u_data indices: 0:id, 1:username, 2:password, 3:app_token, 4:status, 5:hwid, 6:last_login, 7:created_at
+    if u_data[4] == "banned":
+        return jsonify({"status": "failed", "message": "Access Denied: User is banned."}), 403
+        
+    stored_hwid = u_data[5]
+    if stored_hwid is None:
+        db("UPDATE tool_users SET hwid=?, last_login=? WHERE username=?", (hwid, datetime.now().isoformat(), username))
+    elif stored_hwid != hwid:
+        return jsonify({"status": "failed", "message": "HWID Mismatch: License locked to another machine."}), 403
+    else:
+        db("UPDATE tool_users SET last_login=? WHERE username=?", (datetime.now().isoformat(), username))
+        
+    return jsonify({"status": "success", "message": "Authenticated successfully."})
 
 @app.route("/logout")
 def logout():
