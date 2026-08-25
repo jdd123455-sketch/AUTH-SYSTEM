@@ -163,7 +163,7 @@ def db(query, params=(), fetch=False):
     return data
 
 # ==========================================
-# CSS STYLES & ANIMATED CROSSHAIR CURSOR
+# CSS STYLES & BRUTAL STYLISH CURSOR
 # ==========================================
 
 COMMON_HEAD = """
@@ -210,14 +210,14 @@ COMMON_HEAD = """
     pointer-events: none; 
     z-index: 9999; 
     transform: translate(-50%, -50%); 
-    box-shadow: 0 0 10px #22d3ee, 0 0 20px #22d3ee; 
+    box-shadow: 0 0 12px #22d3ee, 0 0 24px #22d3ee; 
   }
   
   #cursor-crosshair { 
     position: fixed; 
-    width: 30px; 
-    height: 30px; 
-    border: 1px solid rgba(34, 211, 238, 0.6); 
+    width: 32px; 
+    height: 32px; 
+    border: 1px solid rgba(34, 211, 238, 0.7); 
     border-radius: 50%; 
     pointer-events: none; 
     z-index: 9998; 
@@ -228,10 +228,10 @@ COMMON_HEAD = """
     content: ''; 
     position: absolute; 
     top: 50%; 
-    left: -5px; 
-    width: 38px; 
+    left: -6px; 
+    width: 44px; 
     height: 1px; 
-    background: rgba(34, 211, 238, 0.7); 
+    background: rgba(34, 211, 238, 0.8); 
     transform: translateY(-50%); 
   }
   
@@ -239,23 +239,23 @@ COMMON_HEAD = """
     content: ''; 
     position: absolute; 
     left: 50%; 
-    top: -5px; 
-    height: 38px; 
+    top: -6px; 
+    height: 44px; 
     width: 1px; 
-    background: rgba(34, 211, 238, 0.7); 
+    background: rgba(34, 211, 238, 0.8); 
     transform: translateX(-50%); 
   }
   
   #cursor-orbit { 
     position: fixed; 
-    width: 48px; 
-    height: 48px; 
-    border: 1px dashed rgba(99, 102, 241, 0.6); 
+    width: 52px; 
+    height: 52px; 
+    border: 1px dashed rgba(99, 102, 241, 0.7); 
     border-radius: 50%; 
     pointer-events: none; 
     z-index: 9997; 
     transform: translate(-50%, -50%); 
-    animation: spinOrbit 6s linear infinite; 
+    animation: spinOrbit 5s linear infinite; 
   }
   
   @keyframes spinOrbit { 
@@ -273,18 +273,34 @@ CURSOR_SCRIPT = """
   const dot = document.getElementById('cursor-dot');
   const cross = document.getElementById('cursor-crosshair');
   const orbit = document.getElementById('cursor-orbit');
-  let mx = 0, my = 0, cx = 0, cy = 0;
+  let mx = window.innerWidth / 2, my = window.innerHeight / 2, cx = mx, cy = my;
 
   window.addEventListener('mousemove', (e) => {
     mx = e.clientX;
     my = e.clientY;
     dot.style.left = mx + 'px';
     dot.style.top = my + 'px';
+
+    // Brutal stylish particle burst on active cursor movement
+    if(Math.random() > 0.15) {
+      particlesArray.push({ 
+        x: mx + (Math.random() * 16 - 8), 
+        y: my + (Math.random() * 16 - 8), 
+        r: Math.random() * 2.2 + 0.8, 
+        vx: (Math.random() - 0.5) * 3.5,
+        vy: Math.random() * 2.5 + 1.0, // Falling down effect tied to movement
+        opacity: 1,
+        color: Math.random() > 0.5 ? '#22d3ee' : '#818cf8'
+      });
+      if(particlesArray.length > 200) {
+        particlesArray.shift();
+      }
+    }
   });
 
   function renderCursor() {
-    cx += (mx - cx) * 0.18;
-    cy += (my - cy) * 0.18;
+    cx += (mx - cx) * 0.2;
+    cy += (my - cy) * 0.2;
     cross.style.left = cx + 'px';
     cross.style.top = cy + 'px';
     orbit.style.left = cx + 'px';
@@ -304,50 +320,43 @@ CURSOR_SCRIPT = """
   window.onresize = resizeCanvas;
   
   let particlesArray = [];
-  for(let i = 0; i < 90; i++) {
+  for(let i = 0; i < 100; i++) {
     particlesArray.push({ 
       x: Math.random() * canvasElement.width, 
       y: Math.random() * canvasElement.height, 
       r: Math.random() * 1.8 + 0.5, 
+      vx: 0,
       vy: Math.random() * 0.6 + 0.2, 
-      opacity: Math.random() * 0.7 + 0.3 
+      opacity: Math.random() * 0.7 + 0.3,
+      color: '#22d3ee'
     });
   }
-  
-  window.addEventListener('mousemove', (e) => {
-    if(Math.random() > 0.4) {
-      particlesArray.push({ 
-        x: e.clientX, 
-        y: e.clientY, 
-        r: Math.random() * 2 + 1, 
-        vy: -(Math.random() * 1.2 + 0.4), 
-        opacity: 1 
-      });
-      if(particlesArray.length > 120) {
-        particlesArray.shift();
-      }
-    }
-  });
 
   function animateParticles() {
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    particlesArray.forEach(p => {
-      p.y -= p.vy;
-      if(p.opacity > 0.3) {
-        p.opacity -= 0.005;
+    
+    particlesArray.forEach((p, index) => {
+      p.x += p.vx || 0;
+      p.y += p.vy;
+      
+      if(p.opacity > 0.05) {
+        p.opacity -= 0.004;
       }
-      if(p.y < 0) { 
-        p.y = canvasElement.height; 
+      
+      if(p.y > canvasElement.height) { 
+        p.y = 0; 
         p.x = Math.random() * canvasElement.width; 
         p.opacity = Math.random() * 0.7 + 0.3; 
       }
+      
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(34, 211, 238, ${p.opacity})`;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = '#22d3ee';
+      ctx.fillStyle = p.color === '#818cf8' ? `rgba(129, 140, 248, ${p.opacity})` : `rgba(34, 211, 238, ${p.opacity})`;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = p.color;
       ctx.fill();
     });
+    
     requestAnimationFrame(animateParticles);
   }
   animateParticles();
@@ -889,7 +898,6 @@ def api_create_app():
     email = session["user"]["email"]
     apps = db("SELECT COUNT(*) FROM apps WHERE owner_email=?", (email,), True)
     
-    # Free Plan limit set to 2 Applications max
     if email not in PAID_USERS and apps[0][0] >= 2:
         return jsonify({"error": "Free Plan limit reached. Max 2 applications allowed. Delete an existing app to create a new one."})
         
@@ -915,7 +923,6 @@ def api_delete_app():
     email = session["user"]["email"]
     token = request.json.get("token")
     
-    # Verify ownership before deleting
     app_check = db("SELECT * FROM apps WHERE token=? AND owner_email=?", (token, email), True)
     if not app_check:
         return jsonify({"message": "App not found or unauthorized!"})
