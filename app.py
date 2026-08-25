@@ -281,20 +281,20 @@ CURSOR_SCRIPT = """
     dot.style.left = mx + 'px';
     dot.style.top = my + 'px';
 
-    // Brutal stylish particle burst on active cursor movement
-    if(Math.random() > 0.15) {
+    // Ultra-Brutal & Stylish Particle Explosion on Mouse Move
+    for(let i = 0; i < 3; i++) {
       particlesArray.push({ 
-        x: mx + (Math.random() * 16 - 8), 
-        y: my + (Math.random() * 16 - 8), 
-        r: Math.random() * 2.2 + 0.8, 
-        vx: (Math.random() - 0.5) * 3.5,
-        vy: Math.random() * 2.5 + 1.0, // Falling down effect tied to movement
+        x: mx, 
+        y: my, 
+        r: Math.random() * 2.8 + 1.0, 
+        vx: (Math.random() - 0.5) * 8.0,
+        vy: (Math.random() - 0.5) * 8.0, 
         opacity: 1,
-        color: Math.random() > 0.5 ? '#22d3ee' : '#818cf8'
+        color: Math.random() > 0.4 ? '#22d3ee' : (Math.random() > 0.5 ? '#818cf8' : '#ffffff')
       });
-      if(particlesArray.length > 200) {
-        particlesArray.shift();
-      }
+    }
+    if(particlesArray.length > 350) {
+      particlesArray.splice(0, 3);
     }
   });
 
@@ -320,13 +320,13 @@ CURSOR_SCRIPT = """
   window.onresize = resizeCanvas;
   
   let particlesArray = [];
-  for(let i = 0; i < 100; i++) {
+  for(let i = 0; i < 120; i++) {
     particlesArray.push({ 
       x: Math.random() * canvasElement.width, 
       y: Math.random() * canvasElement.height, 
       r: Math.random() * 1.8 + 0.5, 
-      vx: 0,
-      vy: Math.random() * 0.6 + 0.2, 
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: Math.random() * 1.2 + 0.3, 
       opacity: Math.random() * 0.7 + 0.3,
       color: '#22d3ee'
     });
@@ -336,23 +336,27 @@ CURSOR_SCRIPT = """
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     
     particlesArray.forEach((p, index) => {
-      p.x += p.vx || 0;
+      p.x += p.vx;
       p.y += p.vy;
       
-      if(p.opacity > 0.05) {
-        p.opacity -= 0.004;
+      if(p.opacity > 0.02) {
+        p.opacity -= 0.008;
+      } else {
+        p.opacity = 0;
       }
       
-      if(p.y > canvasElement.height) { 
+      if(p.y > canvasElement.height || p.x < 0 || p.x > canvasElement.width || p.opacity <= 0) { 
         p.y = 0; 
         p.x = Math.random() * canvasElement.width; 
-        p.opacity = Math.random() * 0.7 + 0.3; 
+        p.opacity = Math.random() * 0.7 + 0.3;
+        p.vx = (Math.random() - 0.5) * 0.6;
+        p.vy = Math.random() * 1.2 + 0.3;
       }
       
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = p.color === '#818cf8' ? `rgba(129, 140, 248, ${p.opacity})` : `rgba(34, 211, 238, ${p.opacity})`;
-      ctx.shadowBlur = 12;
+      ctx.fillStyle = p.color === '#ffffff' ? `rgba(255, 255, 255, ${p.opacity})` : (p.color === '#818cf8' ? `rgba(129, 140, 248, ${p.opacity})` : `rgba(34, 211, 238, ${p.opacity})`);
+      ctx.shadowBlur = 15;
       ctx.shadowColor = p.color;
       ctx.fill();
     });
