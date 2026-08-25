@@ -169,98 +169,288 @@ def db(query, params=(), fetch=False):
 COMMON_HEAD = """
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  body { 
-    background: #060810; 
-    cursor: none; 
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+  :root {
+    --cyan: #00f6ff;
+    --blue: #3b82f6;
+    --violet: #7c3aed;
+    --danger: #ff1744;
+    --bg: #03050b;
+    --panel: rgba(7, 10, 19, .78);
+    --line: rgba(0, 246, 255, .16);
   }
-  
-  #c { 
-    position: fixed; 
-    inset: 0; 
-    z-index: 0; 
-    pointer-events: none; 
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(0,246,255,.12), transparent 35%),
+      radial-gradient(circle at 100% 100%, rgba(124,58,237,.10), transparent 30%),
+      #03050b;
+    color: #f8fafc;
+    cursor: none;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, sans-serif;
+    letter-spacing: .01em;
   }
-  
-  .glass { 
-    backdrop-filter: blur(20px); 
-    background: rgba(13, 16, 28, 0.75); 
-    border: 1px solid rgba(34, 211, 238, 0.15); 
+
+  ::selection {
+    background: rgba(0,246,255,.28);
+    color: white;
   }
-  
-  .glass-card { 
-    background: rgba(15, 20, 35, 0.65); 
-    border: 1px solid rgba(34, 211, 238, 0.12); 
-    backdrop-filter: blur(12px); 
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+
+  ::-webkit-scrollbar { width: 7px; height: 7px; }
+  ::-webkit-scrollbar-track { background: #02040a; }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(var(--cyan), var(--violet));
+    border-radius: 999px;
   }
-  
-  .glass-card:hover { 
-    border-color: rgba(34, 211, 238, 0.4); 
-    transform: translateY(-4px); 
-    box-shadow: 0 12px 35px -10px rgba(34,211,238,0.25); 
+
+  #c {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: .9;
   }
-  
-  #cursor-dot { 
-    position: fixed; 
-    width: 6px; 
-    height: 6px; 
-    background: #22d3ee; 
-    border-radius: 50%; 
-    pointer-events: none; 
-    z-index: 9999; 
-    transform: translate(-50%, -50%); 
-    box-shadow: 0 0 10px #22d3ee, 0 0 20px #22d3ee; 
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(to bottom, black, transparent 90%);
   }
-  
-  #cursor-crosshair { 
-    position: fixed; 
-    width: 30px; 
-    height: 30px; 
-    border: 1px solid rgba(34, 211, 238, 0.6); 
-    border-radius: 50%; 
-    pointer-events: none; 
-    z-index: 9998; 
-    transform: translate(-50%, -50%); 
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,.012) 0px,
+      rgba(255,255,255,.012) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+    opacity: .45;
   }
-  
-  #cursor-crosshair::before { 
-    content: ''; 
-    position: absolute; 
-    top: 50%; 
-    left: -5px; 
-    width: 38px; 
-    height: 1px; 
-    background: rgba(34, 211, 238, 0.7); 
-    transform: translateY(-50%); 
+
+  .glass {
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    background:
+      linear-gradient(145deg, rgba(15,20,35,.88), rgba(3,7,15,.74));
+    border: 1px solid rgba(0,246,255,.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.055),
+      0 25px 80px rgba(0,0,0,.45),
+      0 0 45px rgba(0,246,255,.06);
   }
-  
-  #cursor-crosshair::after { 
-    content: ''; 
-    position: absolute; 
-    left: 50%; 
-    top: -5px; 
-    height: 38px; 
-    width: 1px; 
-    background: rgba(34, 211, 238, 0.7); 
-    transform: translateX(-50%); 
+
+  .glass::before,
+  .glass-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      120deg,
+      rgba(0,246,255,.055),
+      transparent 28%,
+      transparent 72%,
+      rgba(124,58,237,.045)
+    );
   }
-  
-  #cursor-orbit { 
-    position: fixed; 
-    width: 48px; 
-    height: 48px; 
-    border: 1px dashed rgba(99, 102, 241, 0.6); 
-    border-radius: 50%; 
-    pointer-events: none; 
-    z-index: 9997; 
-    transform: translate(-50%, -50%); 
-    animation: spinOrbit 6s linear infinite; 
+
+  .glass-card {
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(145deg, rgba(12,17,30,.86), rgba(4,7,14,.72));
+    border: 1px solid rgba(0,246,255,.13);
+    backdrop-filter: blur(18px) saturate(130%);
+    -webkit-backdrop-filter: blur(18px) saturate(130%);
+    transition:
+      transform .28s cubic-bezier(.2,.8,.2,1),
+      border-color .28s ease,
+      box-shadow .28s ease,
+      background .28s ease;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.035),
+      0 12px 45px rgba(0,0,0,.30);
   }
-  
-  @keyframes spinOrbit { 
-    0% { transform: translate(-50%, -50%) rotate(0deg); } 
-    100% { transform: translate(-50%, -50%) rotate(360deg); } 
+
+  .glass-card:hover {
+    border-color: rgba(0,246,255,.38);
+    transform: translateY(-5px);
+    background:
+      linear-gradient(145deg, rgba(15,24,42,.92), rgba(4,8,17,.80));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.06),
+      0 18px 55px rgba(0,0,0,.48),
+      0 0 35px rgba(0,246,255,.13);
+  }
+
+  input, select {
+    transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  }
+
+  input:focus, select:focus {
+    border-color: rgba(0,246,255,.65) !important;
+    box-shadow: 0 0 0 3px rgba(0,246,255,.07), 0 0 22px rgba(0,246,255,.10);
+  }
+
+  button, a {
+    transition:
+      transform .2s ease,
+      filter .2s ease,
+      border-color .2s ease,
+      box-shadow .2s ease,
+      background .2s ease;
+  }
+
+  button:hover, a:hover { filter: brightness(1.08); }
+
+  button:active, a:active { transform: scale(.97); }
+
+  /* Makes Tailwind gradient buttons look more aggressive without changing markup. */
+  .bg-gradient-to-r {
+    background-size: 180% 100%;
+    animation: gradientShift 5s ease infinite;
+  }
+
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  /* Animated cyber corners for major panels. */
+  .glass-card::after,
+  .glass::after {
+    content: "";
+    position: absolute;
+    width: 55px;
+    height: 55px;
+    right: -28px;
+    bottom: -28px;
+    border: 1px solid rgba(0,246,255,.18);
+    transform: rotate(45deg);
+    pointer-events: none;
+  }
+
+  #cursor-dot {
+    position: fixed;
+    width: 7px;
+    height: 7px;
+    background: var(--cyan);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    box-shadow:
+      0 0 8px var(--cyan),
+      0 0 20px var(--cyan),
+      0 0 38px rgba(0,246,255,.7);
+  }
+
+  #cursor-crosshair {
+    position: fixed;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(0,246,255,.7);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 18px rgba(0,246,255,.16);
+  }
+
+  #cursor-crosshair::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: -8px;
+    width: 48px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,246,255,.85), transparent);
+    transform: translateY(-50%);
+  }
+
+  #cursor-crosshair::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -8px;
+    height: 48px;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(0,246,255,.85), transparent);
+    transform: translateX(-50%);
+  }
+
+  #cursor-orbit {
+    position: fixed;
+    width: 56px;
+    height: 56px;
+    border: 1px dashed rgba(124,58,237,.75);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9997;
+    transform: translate(-50%, -50%);
+    animation: spinOrbit 5s linear infinite;
+    box-shadow: 0 0 18px rgba(124,58,237,.10);
+  }
+
+  @keyframes spinOrbit {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+
+  .side-active {
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(90deg, rgba(0,246,255,.16), rgba(124,58,237,.08)) !important;
+    border: 1px solid rgba(0,246,255,.42) !important;
+    color: #67f7ff !important;
+    font-weight: 800;
+    box-shadow:
+      inset 3px 0 0 var(--cyan),
+      0 0 24px rgba(0,246,255,.08);
+  }
+
+  .side-active::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--cyan);
+    box-shadow: 0 0 14px var(--cyan);
+  }
+
+  @media (max-width: 768px) {
+    body { cursor: auto; }
+    #cursor-dot, #cursor-crosshair, #cursor-orbit { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
   }
 </style>
 """
@@ -366,7 +556,7 @@ LANDING = """<!DOCTYPE html>
 <body class="text-white overflow-x-hidden relative min-h-screen flex flex-col justify-between">
 <canvas id="c"></canvas>
 
-<nav class="relative z-10 flex justify-between items-center px-10 py-5 bg-black/40 backdrop-blur-md border-b border-cyan-500/10">
+<nav class="relative z-10 flex justify-between items-center px-10 py-5 bg-black/55 backdrop-blur-xl border-b border-cyan-400/15 shadow-[0_8px_35px_rgba(0,0,0,0.35)]">
   <div class="flex items-center gap-3">
     <div class="w-10 h-10 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_18px_#22d3ee]">👾</div>
     <div>
@@ -451,7 +641,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <body class="flex h-screen text-white overflow-hidden relative">
 <canvas id="c"></canvas>
 
-<div class="w-[260px] bg-black/80 backdrop-blur-xl border-r border-white/10 flex flex-col relative z-10">
+<div class="w-[260px] bg-[#02040a]/90 backdrop-blur-2xl border-r border-cyan-400/10 shadow-[15px_0_45px_rgba(0,0,0,0.35)] flex flex-col relative z-10">
   <div class="p-5 flex items-center gap-3 border-b border-white/10">
     <div class="w-9 h-9 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_12px_#22d3ee]">👾</div>
     <div>
@@ -480,7 +670,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="flex-1 overflow-y-auto relative z-10">
-  <div class="h-14 bg-black/40 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-8">
+  <div class="h-14 bg-black/55 backdrop-blur-xl border-b border-cyan-400/10 shadow-[0_8px_35px_rgba(0,0,0,0.3)] flex items-center justify-between px-8">
     <p class="text-xs font-semibold tracking-wider text-cyan-300">HSL CONSOLE - {{plan_text}} PLAN</p>
     <button onclick="showTab('billing')" class="text-xs bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 text-white px-5 py-2 rounded-full font-bold shadow-[0_0_15px_rgba(34,211,238,0.4)] transition">Upgrade to Unlimited</button>
   </div>
