@@ -139,7 +139,10 @@ def home(): return render_template_string(LANDING)
 @app.route("/login")
 def login(): return render_template_string(LOGIN)
 @app.route("/auth/google")
-def auth_google(): return google.authorize_redirect("http://127.0.0.1:5000/auth/callback")
+def auth_google():
+    from flask import request
+    redirect_uri = request.url_root.rstrip('/') + "/auth/callback"
+    return google.authorize_redirect(redirect_uri)
 @app.route("/auth/callback")
 def callback():
     token = google.authorize_access_token()
