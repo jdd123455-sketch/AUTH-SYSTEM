@@ -1,0 +1,5 @@
+Flask
+authlib
+requests
+discord.py
+gunicorn

@@ -1,0 +1,5 @@
+hsl.db
+__pycache__/
+my_tool.py
+auth_client.py
+.env
