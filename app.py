@@ -311,22 +311,26 @@ def api_auth_login():
             return jsonify({"status":"hwid_mismatch", "message":"Locked to another PC. Ask Admin to Reset HWID."})
 @app.route("/verify", methods=["POST"])
 def verify():
-    data = request.form.get('key') or (request.get_json(silent=True) or {}).get('key')
-    if not data:
-        return jsonify({"success": False, "message": "No key provided"}), 400
-
-    # Tumhare purane system ke hisab se username = key hai
-    res = db("SELECT * FROM tool_users WHERE username=?", (data,))
-
-    if not res:
-        return jsonify({"success": False, "message": "Invalid Key"})
-
-    user_row = res[0]
-    if user_row[4] == 'banned':
-        return jsonify({"success": False, "message": "Banned"})
-
-    # Sab sahi hai toh true bhej
-    return jsonify({"success": True, "message": "Valid", "true": True})
+    key = request.form.get('key')
+    if not key:
+        j = request.get_json(silent=True)
+        if j:
+            key = j.get('key') or j.get('username') or j.get('license')
+    print(f"[VERIFY] Received key: {key}")
+    if not key:
+        return jsonify({"success": False, "message": "No key"}), 400
+    key = key.strip()
+    try:
+        res = db("SELECT * FROM tool_users WHERE LOWER(username)=LOWER(?)", (key,))
+        print(f"[VERIFY] DB result: {res}")
+        if not res:
+            return jsonify({"success": False, "message": "Invalid Key", "received": key})
+        if len(res[0]) > 4 and str(res[0][4]).lower() == 'banned':
+            return jsonify({"success": False, "message": "Banned"})
+        return jsonify({"success": True, "true": True, "message": "Login Success"})
+    except Exception as e:
+        print(f"[VERIFY ERROR] {e}")
+        return jsonify({"success": False, "message": f"Server Error: {e}"}), 500
 
 @app.route("/logout")
 def logout():
