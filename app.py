@@ -2,15 +2,14 @@ from flask import Flask, session, redirect, render_template_string, request, jso
 from authlib.integrations.flask_client import OAuth
 import sqlite3, random, string, os
 from datetime import datetime
-
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app = Flask(__name__)
 app.secret_key = "hsl_corp_final_2026_pro"
 
-import os
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 
-# --- YAHAN PAID EMAILS DALO JINKO UNLIMITED DENA HAI ---
 PAID_USERS = ["js7876839939@gmail.com"]
 
 oauth = OAuth(app)
@@ -34,15 +33,15 @@ def db(query, params=(), fetch=False):
     con.commit(); con.close()
     return data
 
-LANDING = """<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script><style>body{background:#05010a}#c{position:fixed;inset:0;z-index:0}</style></head><body class="text-white overflow-x-hidden"><canvas id="c"></canvas><nav class="relative z-10 flex justify-between items-center px-8 py-4 bg-black/60 border-b border-white/5"><div class="flex items-center gap-2"><div class="w-7 h-7 bg-[#ff2d55] rounded-full flex items-center justify-center">👾</div><div><p class="font-black text-[13px]">HSL CORP</p><p class="text-[8px] text-red-400">NEXT-GEN SOFTWARE PROTECTION</p></div></div><div class="flex gap-2"><a href="/login" class="bg-zinc-900 border border-zinc-800 px-4 py-1.5 rounded-full text-[11px]">Sign In</a><a href="/login" class="bg-[#ff2d55] px-4 py-1.5 rounded-full text-[11px] font-bold">Create Account</a></div></nav><div class="relative z-10 flex flex-col items-center text-center pt-24"><h1 class="text-7xl font-black bg-gradient-to-r from-white to-[#ff5a7d] bg-clip-text text-transparent">HSL CORP AUTH</h1><p class="text-zinc-300 mt-4 font-bold text-[14px]">Next-Gen HWID Protection & Licensing Infrastructure</p><a href="/login" class="bg-[#ff2d55] px-6 py-2.5 rounded-xl text-xs font-bold shadow-[0_0_20px_rgba(255,45,85,0.6)] mt-8">🚀 Get Started - It's Free</a><div class="mt-24 w-full max-w-5xl px-6 pb-20"><p class="font-bold text-lg text-left">Core Infrastructure</p><div class="grid md:grid-cols-3 gap-4 mt-6 text-left"><div class="bg-black/60 border border-white/5 rounded-xl p-5"><p>🔒</p><p class="font-bold text-sm mt-2">Motherboard HWID Lock</p></div><div class="bg-black/60 border border-white/5 rounded-xl p-5"><p>🛡️</p><p class="font-bold text-sm mt-2">Dynamic AES-256 Session</p></div><div class="bg-black/60 border border-white/5 rounded-xl p-5"><p>🤖</p><p class="font-bold text-sm mt-2">Username/Pass Auth</p></div></div></div></div><script>const c=document.getElementById('c'),x=c.getContext('2d');function R(){c.width=innerWidth;c.height=innerHeight}R();onresize=R;let p=[];for(let i=0;i<90;i++)p.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.8+0.6,vy:Math.random()*0.7+0.2});function A(){x.clearRect(0,0,c.width,c.height);p.forEach(o=>{o.y-=o.vy;if(o.y<0){o.y=c.height;o.x=Math.random()*c.width}x.beginPath();x.arc(o.x,o.y,o.r,0,6.28);x.fillStyle='#ff2d55';x.shadowBlur=10;x.shadowColor='#ff2d55';x.fill();});requestAnimationFrame(A)}A();</script></body></html>"""
-LOGIN = """<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script><style>body{background:#05010a}#c{position:fixed;inset:0;z-index:0}.glass{backdrop-filter:blur(20px); background:rgba(0,0,0,0.85); border:1px solid rgba(255,255,255,0.08)}</style></head><body class="flex items-center justify-center h-screen overflow-hidden"><canvas id="c"></canvas><div class="relative z-10 w-[420px] glass rounded-[24px] p-8 text-center"><div class="w-14 h-14 bg-[#ff2d55] rounded-full mx-auto flex items-center justify-center">👾</div><h1 class="font-black mt-4 text-white">HSL CORP</h1><a href="/auth/google" class="mt-6 w-full bg-white text-black rounded-full py-3.5 flex justify-center gap-2 font-bold text-sm"><img src="https://www.svgrepo.com/show/475656/google-color.svg" width=18> Continue with Google</a></div><script>const c=document.getElementById('c'),x=c.getContext('2d');function R(){c.width=innerWidth;c.height=innerHeight}R();onresize=R;let p=[];for(let i=0;i<110;i++)p.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*2+0.6,vy:Math.random()*0.8+0.2});function A(){x.clearRect(0,0,c.width,c.height);p.forEach(o=>{o.y-=o.vy;if(o.y<0){o.y=c.height;o.x=Math.random()*c.width}x.beginPath();x.arc(o.x,o.y,o.r,0,6.28);x.fillStyle='#ff2d55';x.shadowBlur=12;x.shadowColor='#ff2d55';x.fill();});requestAnimationFrame(A)}A();</script></body></html>"""
+LANDING = """<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script><style>body{background:#080a14}#c{position:fixed;inset:0;z-index:0}</style></head><body class="text-white overflow-x-hidden"><canvas id="c"></canvas><nav class="relative z-10 flex justify-between items-center px-8 py-4 bg-black/60 border-b border-cyan-500/10"><div class="flex items-center gap-2"><div class="w-7 h-7 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-full flex items-center justify-center shadow-[0_0_10px_#22d3ee]">👾</div><div><p class="font-black text-[13px]">HSL CORP</p><p class="text-[8px] text-cyan-400">NEXT-GEN SOFTWARE PROTECTION</p></div></div><div class="flex gap-2"><a href="/login" class="bg-zinc-900 border border-zinc-800 px-4 py-1.5 rounded-full text-[11px]">Sign In</a><a href="/login" class="bg-gradient-to-r from-cyan-400 to-indigo-600 px-4 py-1.5 rounded-full text-[11px] font-bold shadow-[0_0_15px_rgba(34,211,238,0.5)]">Create Account</a></div></nav><div class="relative z-10 flex flex-col items-center text-center pt-24"><h1 class="text-7xl font-black bg-gradient-to-r from-cyan-300 via-cyan-400 to-indigo-500 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(34,211,238,0.3)]">HSL CORP AUTH</h1><p class="text-zinc-300 mt-4 font-bold text-[14px]">Next-Gen HWID Protection & Licensing Infrastructure</p><a href="/login" class="bg-gradient-to-r from-cyan-400 to-indigo-600 px-6 py-2.5 rounded-xl text-xs font-bold shadow-[0_0_25px_rgba(34,211,238,0.6)] mt-8">🚀 Get Started - It's Free</a><div class="mt-24 w-full max-w-5xl px-6 pb-20"><p class="font-bold text-lg text-left">Core Infrastructure</p><div class="grid md:grid-cols-3 gap-4 mt-6 text-left"><div class="bg-black/60 border border-cyan-500/10 rounded-xl p-5 hover:border-cyan-400/30 transition"><p>🔒</p><p class="font-bold text-sm mt-2">Motherboard HWID Lock</p></div><div class="bg-black/60 border border-cyan-500/10 rounded-xl p-5 hover:border-indigo-400/30 transition"><p>🛡️</p><p class="font-bold text-sm mt-2">Dynamic AES-256 Session</p></div><div class="bg-black/60 border border-cyan-500/10 rounded-xl p-5 hover:border-cyan-400/30 transition"><p>🤖</p><p class="font-bold text-sm mt-2">Username/Pass Auth</p></div></div></div></div><script>const c=document.getElementById('c'),x=c.getContext('2d');function R(){c.width=innerWidth;c.height=innerHeight}R();onresize=R;let p=[];for(let i=0;i<90;i++)p.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.8+0.6,vy:Math.random()*0.7+0.2});function A(){x.clearRect(0,0,c.width,c.height);p.forEach(o=>{o.y-=o.vy;if(o.y<0){o.y=c.height;o.x=Math.random()*c.width}x.beginPath();x.arc(o.x,o.y,o.r,0,6.28);x.fillStyle='#22d3ee';x.shadowBlur=10;x.shadowColor='#22d3ee';x.fill();});requestAnimationFrame(A)}A();</script></body></html>"""
+LOGIN = """<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script><style>body{background:#080a14}#c{position:fixed;inset:0;z-index:0}.glass{backdrop-filter:blur(20px); background:rgba(15,17,31,0.85); border:1px solid rgba(34,211,238,0.15)}</style></head><body class="flex items-center justify-center h-screen overflow-hidden"><canvas id="c"></canvas><div class="relative z-10 w-[420px] glass rounded-[24px] p-8 text-center shadow-[0_0_50px_rgba(34,211,238,0.15)]"><div class="w-14 h-14 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-full mx-auto flex items-center justify-center shadow-[0_0_15px_#22d3ee]">👾</div><h1 class="font-black mt-4 text-white bg-gradient-to-r from-cyan-300 to-indigo-400 bg-clip-text text-transparent">HSL CORP</h1><a href="/auth/google" class="mt-6 w-full bg-white text-black rounded-full py-3.5 flex justify-center gap-2 font-bold text-sm hover:scale-[1.02] transition"><img src="https://www.svgrepo.com/show/475656/google-color.svg" width=18> Continue with Google</a></div><script>const c=document.getElementById('c'),x=c.getContext('2d');function R(){c.width=innerWidth;c.height=innerHeight}R();onresize=R;let p=[];for(let i=0;i<110;i++)p.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*2+0.6,vy:Math.random()*0.8+0.2});function A(){x.clearRect(0,0,c.width,c.height);p.forEach(o=>{o.y-=o.vy;if(o.y<0){o.y=c.height;o.x=Math.random()*c.width}x.beginPath();x.arc(o.x,o.y,o.r,0,6.28);x.fillStyle='#22d3ee';x.shadowBlur=12;x.shadowColor='#22d3ee';x.fill();});requestAnimationFrame(A)}A();</script></body></html>"""
 
 DASHBOARD_HTML = """
 <!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script>
-<style>body{background:#08020a}#c{position:fixed;inset:0;z-index:0;opacity:1}.card{background:rgba(25,10,15,0.85); border:1px solid rgba(255,45,85,0.18)}.side-active{background:rgba(255,45,85,0.15); border:1px solid rgba(255,45,85,0.3); color:#ff2d55!important}</style></head>
+<style>body{background:#080a14}#c{position:fixed;inset:0;z-index:0;opacity:1}.card{background:rgba(15,17,31,0.85); border:1px solid rgba(34,211,238,0.12)}.side-active{background:rgba(34,211,238,0.12); border:1px solid rgba(34,211,238,0.3); color:#22d3ee!important}</style></head>
 <body class="flex h-screen text-white overflow-hidden relative"><canvas id="c"></canvas>
 <div class="w-[240px] bg-black/90 border-r border-white/5 flex flex-col relative z-10">
-<div class="p-4 flex items-center gap-2 border-b border-white/5"><div class="w-8 h-8 bg-[#ff2d55] rounded-full flex items-center justify-center">👾</div><div><p class="font-black text-[12px]">HSL CORP</p><p class="text-[8px] text-[#ff2d55]">Developer Console</p></div></div>
+<div class="p-4 flex items-center gap-2 border-b border-white/5"><div class="w-8 h-8 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-full flex items-center justify-center shadow-[0_0_10px_#22d3ee]">👾</div><div><p class="font-black text-[12px]">HSL CORP</p><p class="text-[8px] text-cyan-400">Developer Console</p></div></div>
 <div class="p-3 space-y-1 text-[11px]" id="sidebar">
 <button onclick="showTab('overview')" id="btn-overview" class="side-active w-full text-left rounded-lg px-3 py-2">🏠 Overview</button>
 <button onclick="showTab('applications')" id="btn-applications" class="w-full text-left text-zinc-500 px-3 py-2">📦 Applications</button>
@@ -51,17 +50,17 @@ DASHBOARD_HTML = """
 <button onclick="showTab('integrate')" id="btn-integrate" class="w-full text-left text-zinc-500 px-3 py-2">🔌 How to Integrate</button>
 <button onclick="showTab('billing')" id="btn-billing" class="w-full text-left text-zinc-500 px-3 py-2">💎 Billing / Upgrade</button>
 </div>
-<div class="mt-auto p-3 border-t border-white/5 flex items-center gap-2"><img src="https://ui-avatars.com/api/?name={{name}}&background=ff2d55&color=fff" class="w-7 h-7 rounded-full"><div><p class="text-[10px] font-bold truncate w-[110px]">{{email}}</p><p class="text-[8px] {{plan_color}}">{{plan_text}}</p></div><a href="/logout" class="ml-auto text-[10px] text-red-400">Logout</a></div>
+<div class="mt-auto p-3 border-t border-white/5 flex items-center gap-2"><img src="https://ui-avatars.com/api/?name={{name}}&background=22d3ee&color=fff" class="w-7 h-7 rounded-full"><div><p class="text-[10px] font-bold truncate w-[110px]">{{email}}</p><p class="text-[8px] {{plan_color}}">{{plan_text}}</p></div><a href="/logout" class="ml-auto text-[10px] text-red-400">Logout</a></div>
 </div>
 <div class="flex-1 overflow-y-auto relative z-10">
-<div class="h-12 bg-black/60 border-b border-white/5 flex items-center justify-between px-6"><p class="text-[10px]">HSL CONSOLE - {{plan_text}} PLAN</p><div class="flex gap-2"><button onclick="showTab('billing')" class="text-[10px] bg-yellow-500 text-black px-4 py-1.5 rounded-full font-bold">Upgrade to Unlimited</button></div></div>
+<div class="h-12 bg-black/60 border-b border-white/5 flex items-center justify-between px-6"><p class="text-[10px]">HSL CONSOLE - {{plan_text}} PLAN</p><div class="flex gap-2"><button onclick="showTab('billing')" class="text-[10px] bg-gradient-to-r from-cyan-400 to-indigo-600 text-white px-4 py-1.5 rounded-full font-bold">Upgrade to Unlimited</button></div></div>
 <div class="p-6">
 
 <div id="tab-overview"><h1 class="text-xl font-bold">Dashboard Overview</h1>
 <div class="mt-6 grid grid-cols-[1.3fr_1fr_0.7fr] gap-3">
-<div class="card rounded-xl p-4"><p class="text-[9px] text-[#ff2d55]">ACTIVE APPLICATION</p><select id="appSelect" onchange="selectApp(this.value)" class="bg-black border border-white/10 rounded-lg px-3 py-2 text-[12px] mt-2 w-full">{{app_options}}</select></div>
-<div class="card rounded-xl p-4"><p class="text-[9px] text-zinc-500">MASTER APP TOKEN</p><div class="mt-2 flex justify-between bg-black rounded-lg px-3 py-2 border border-white/5"><p id="tokenDisplay" class="text-[11px] text-zinc-400 truncate">{{active_token}}</p><button onclick="copyToken()" class="text-[9px] bg-[#ff2d55] px-3 py-1 rounded-full">Copy</button></div></div>
-<div class="card rounded-xl p-4"><p class="text-[9px] text-zinc-500">PLAN LIMIT</p><p class="text-[11px] mt-2">{{tool_user_count}} / {{limit_text}} Used</p><div class="w-full bg-zinc-800 h-1.5 mt-2 rounded-full"><div class="bg-[#ff2d55] h-1.5 rounded-full" style="width:{{percent}}%"></div></div></div>
+<div class="card rounded-xl p-4"><p class="text-[9px] text-cyan-400">ACTIVE APPLICATION</p><select id="appSelect" onchange="selectApp(this.value)" class="bg-black border border-white/10 rounded-lg px-3 py-2 text-[12px] mt-2 w-full">{{app_options}}</select></div>
+<div class="card rounded-xl p-4"><p class="text-[9px] text-zinc-500">MASTER APP TOKEN</p><div class="mt-2 flex justify-between bg-black rounded-lg px-3 py-2 border border-white/5"><p id="tokenDisplay" class="text-[11px] text-zinc-400 truncate">{{active_token}}</p><button onclick="copyToken()" class="text-[9px] bg-gradient-to-r from-cyan-400 to-indigo-600 px-3 py-1 rounded-full">Copy</button></div></div>
+<div class="card rounded-xl p-4"><p class="text-[9px] text-zinc-500">PLAN LIMIT</p><p class="text-[11px] mt-2">{{tool_user_count}} / {{limit_text}} Used</p><div class="w-full bg-zinc-800 h-1.5 mt-2 rounded-full"><div class="bg-gradient-to-r from-cyan-400 to-indigo-600 h-1.5 rounded-full" style="width:{{percent}}%"></div></div></div>
 </div>
 <div class="mt-6 card rounded-xl p-6">
 <p class="text-sm font-bold">+ Create New Username / Password</p>
@@ -69,12 +68,12 @@ DASHBOARD_HTML = """
 <input id="newUsername" placeholder="Username" class="flex-1 bg-black border border-white/10 rounded-lg px-3 py-2.5 text-sm">
 <input id="newPassword" placeholder="Password" class="flex-1 bg-black border border-white/10 rounded-lg px-3 py-2.5 text-sm">
 </div>
-<button onclick="createUser()" class="mt-3 w-full bg-[#ff2d55] py-2.5 rounded-full text-sm font-bold">Create User</button>
+<button onclick="createUser()" class="mt-3 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-2.5 rounded-full text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)]">Create User</button>
 <p class="text-[10px] text-zinc-500 mt-2">Free plan me sirf 10 users bana sakte ho. Unlimited ke liye Billing dekho.</p>
 </div>
 </div>
 
-<div id="tab-applications" class="hidden"><h1 class="text-xl font-bold">Applications</h1><div class="card mt-6 rounded-xl p-6"><div class="space-y-2 mb-6">{{app_list_html}}</div><div class="border-t border-white/10 pt-4"><p class="text-sm font-bold">+ Create New App</p><input id="newAppName" placeholder="App Name e.g. HSL Tool v1" class="mt-3 w-full bg-black border border-white/10 rounded-lg px-3 py-2.5 text-sm"><button onclick="createApp()" class="mt-3 w-full bg-[#ff2d55] py-2.5 rounded-full text-sm font-bold">Create Application</button></div></div></div>
+<div id="tab-applications" class="hidden"><h1 class="text-xl font-bold">Applications</h1><div class="card mt-6 rounded-xl p-6"><div class="space-y-2 mb-6">{{app_list_html}}</div><div class="border-t border-white/10 pt-4"><p class="text-sm font-bold">+ Create New App</p><input id="newAppName" placeholder="App Name e.g. HSL Tool v1" class="mt-3 w-full bg-black border border-white/10 rounded-lg px-3 py-2.5 text-sm"><button onclick="createApp()" class="mt-3 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-2.5 rounded-full text-sm font-bold">Create Application</button></div></div></div>
 
 <div id="tab-tool_users" class="hidden"><h1 class="text-xl font-bold">Username / Pass Users ({{tool_user_count}}/{{limit_text}})</h1><div class="card mt-6 rounded-xl p-5"><div class="space-y-2 text-[12px] font-mono">{{tool_users_list_html}}</div></div></div>
 
@@ -82,7 +81,7 @@ DASHBOARD_HTML = """
 
 <div id="tab-integrate" class="hidden"><h1 class="text-xl font-bold">How to Integrate in Your Tool</h1><div class="card mt-6 rounded-xl p-6">
 <p class="text-[12px] text-zinc-400">Step 1: Your App Token (Auto Generated for selected app)</p>
-<div class="mt-2 bg-black border border-[#ff2d55]/30 rounded-lg px-3 py-2 flex justify-between"><p id="tokenDisplay2" class="text-[12px] text-[#ff2d55] truncate">{{active_token}}</p><button onclick="copyToken2()" class="text-[9px] bg-[#ff2d55] px-3 py-1 rounded-full">Copy</button></div>
+<div class="mt-2 bg-black border border-cyan-500/30 rounded-lg px-3 py-2 flex justify-between"><p id="tokenDisplay2" class="text-[12px] text-cyan-400 truncate">{{active_token}}</p><button onclick="copyToken2()" class="text-[9px] bg-gradient-to-r from-cyan-400 to-indigo-600 px-3 py-1 rounded-full">Copy</button></div>
 <p class="text-[12px] text-zinc-400 mt-6">Step 2: Add this code in your Python Tool's app.py</p>
 <pre class="mt-2 bg-black border border-white/10 rounded-lg p-4 text-[11px] overflow-x-auto text-green-300">import requests, subprocess
 MY_APP_TOKEN = "{{active_token}}"
@@ -107,13 +106,13 @@ def get_hwid():
 <div id="tab-billing" class="hidden"><h1 class="text-xl font-bold">Billing / Plans</h1>
 <div class="grid grid-cols-2 gap-4 mt-6">
 <div class="card rounded-xl p-6 border border-zinc-700"><p class="font-bold">FREE PLAN</p><p class="text-3xl font-black mt-2">₹0</p><p class="text-[12px] text-zinc-400 mt-2">✓ 10 Users / Keys Only<br>✓ 1 Application<br>✓ HWID Lock</p><p class="mt-4 text-[11px] bg-zinc-800 rounded-full px-3 py-1 inline-block">Current: {{plan_text}}</p></div>
-<div class="card rounded-xl p-6 border border-[#ff2d55] bg-[#ff2d55]/10"><p class="font-bold text-[#ff2d55]">PRO UNLIMITED</p><p class="text-3xl font-black mt-2">₹499</p><p class="text-[12px] text-zinc-300 mt-2">✓ Unlimited Users<br>✓ Unlimited Apps<br>✓ Unlimited Keys<br>✓ Priority Support</p><a href="https://wa.me/919999999999?text=Hi%20I%20want%20HSL%20PRO%20Plan%20{{email}}" target="_blank" class="mt-4 block text-center bg-[#ff2d55] py-2.5 rounded-full text-sm font-bold">Buy on WhatsApp</a></div>
+<div class="card rounded-xl p-6 border border-cyan-400 bg-cyan-500/10"><p class="font-bold text-cyan-400">PRO UNLIMITED</p><p class="text-3xl font-black mt-2">₹499</p><p class="text-[12px] text-zinc-300 mt-2">✓ Unlimited Users<br>✓ Unlimited Apps<br>✓ Unlimited Keys<br>✓ Priority Support</p><a href="https://wa.me/919999999999?text=Hi%20I%20want%20HSL%20PRO%20Plan%20{{email}}" target="_blank" class="mt-4 block text-center bg-gradient-to-r from-cyan-400 to-indigo-600 py-2.5 rounded-full text-sm font-bold">Buy on WhatsApp</a></div>
 </div>
 </div>
 
 </div></div>
 <script>
-const c=document.getElementById('c'),x=c.getContext('2d');function R(){c.width=innerWidth;c.height=innerHeight}R();addEventListener('resize',R);let p=[];for(let i=0;i<150;i++)p.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*2+0.8,vy:Math.random()*0.7+0.3,opacity:Math.random()*0.7+0.3});function A(){x.clearRect(0,0,c.width,c.height);p.forEach(o=>{o.y-=o.vy;if(o.y<0){o.y=c.height;o.x=Math.random()*c.width}x.beginPath();x.arc(o.x,o.y,o.r,0,6.28);x.fillStyle=`rgba(255,45,85,${o.opacity})`;x.shadowBlur=15;x.shadowColor='#ff2d55';x.fill();});requestAnimationFrame(A)}A();
+const c=document.getElementById('c'),x=c.getContext('2d');function R(){c.width=innerWidth;c.height=innerHeight}R();addEventListener('resize',R);let p=[];for(let i=0;i<150;i++)p.push({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*2+0.8,vy:Math.random()*0.7+0.3,opacity:Math.random()*0.7+0.3});function A(){x.clearRect(0,0,c.width,c.height);p.forEach(o=>{o.y-=o.vy;if(o.y<0){o.y=c.height;o.x=Math.random()*c.width}x.beginPath();x.arc(o.x,o.y,o.r,0,6.28);x.fillStyle=`rgba(34,211,238,${o.opacity})`;x.shadowBlur=15;x.shadowColor='#22d3ee';x.fill();});requestAnimationFrame(A)}A();
 function showTab(name){document.querySelectorAll('[id^="tab-"]').forEach(d=>d.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('#sidebar button').forEach(b=>{b.classList.remove('side-active');b.classList.add('text-zinc-500')});let btn=document.getElementById('btn-'+name);if(btn){btn.classList.add('side-active');btn.classList.remove('text-zinc-500')}}
 async function createApp(){let name=document.getElementById('newAppName').value.trim();if(!name){alert('Name likh!');return;}let res=await fetch('/api/create_app',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})});let data=await res.json();if(data.error){alert(data.error);}else{alert('App Created! Token: '+data.token);location.reload();}}
 function copyToken(){let t=document.getElementById('tokenDisplay').innerText;navigator.clipboard.writeText(t);alert('Copied: '+t);}
@@ -138,11 +137,19 @@ async function editUser(oldU, oldP){
 def home(): return render_template_string(LANDING)
 @app.route("/login")
 def login(): return render_template_string(LOGIN)
+
+# --- YAHAN FIX KIYA HAI ---
 @app.route("/auth/google")
 def auth_google():
+<<<<<<< HEAD
     from flask import request
     redirect_uri = request.url_root.rstrip('/') + "/auth/callback"
     return google.authorize_redirect(redirect_uri)
+=======
+    redirect_uri = request.url_root.rstrip('/') + "/auth/callback"
+    return google.authorize_redirect(redirect_uri)
+
+>>>>>>> af9177a (Fixed Google auth + Cyan Indigo theme)
 @app.route("/auth/callback")
 def callback():
     token = google.authorize_access_token()
@@ -159,7 +166,6 @@ def dash():
     limit_text = "Unlimited" if is_paid else "10"
     plan_text = "PRO UNLIMITED" if is_paid else "FREE"
     plan_color = "text-green-400" if is_paid else "text-yellow-400"
-
     apps = db("SELECT * FROM apps WHERE owner_email=?", (email,), True)
     if not apps:
         app_options = "<option>No Apps Created</option>"
@@ -169,14 +175,11 @@ def dash():
         app_options = "".join([f"<option value='{a[2]}'>{a[1]}</option>" for a in apps])
         active_token = apps[0][2]
         app_list_html = "".join([f"<div class='bg-black border border-white/10 rounded-lg px-3 py-2 flex justify-between'><span>{a[1]}</span><span class='text-[10px] text-zinc-500'>{a[2][:20]}...</span></div>" for a in apps])
-
     keys = db("SELECT * FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
     keys_list_html = "".join([f"<div class='flex justify-between bg-black border border-white/10 rounded-lg px-3 py-2'><span>{k[1]}</span><span class='{ 'text-green-400' if k[3]=='unused' else 'text-red-400'}'>● {k[3]}</span></div>" for k in keys]) if keys else "<p class='text-center text-zinc-600 text-xs mt-10'>No keys</p>"
-
     tool_users = db("SELECT * FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
     tool_user_count = len(tool_users)
     percent = 10 if tool_user_count==0 else min(int(tool_user_count/limit*100),100) if not is_paid else 100
-
     tool_users_list_html = ""
     for u in tool_users:
         hwid_short = (u[5][:15] + '...') if u[5] else 'Not Logged Yet'
@@ -198,7 +201,6 @@ def dash():
         """
     if not tool_users_list_html:
         tool_users_list_html = "<p class='text-center text-zinc-600 text-xs mt-10'>No users yet. Create from Overview.</p>"
-
     html = DASHBOARD_HTML.replace("{{name}}", session['user']['name']).replace("{{email}}", email).replace("{{app_options}}", app_options).replace("{{active_token}}", active_token).replace("{{app_list_html}}", app_list_html).replace("{{keys_list_html}}", keys_list_html).replace("{{tool_user_count}}", str(tool_user_count)).replace("{{limit_text}}", limit_text).replace("{{plan_text}}", plan_text).replace("{{plan_color}}", plan_color).replace("{{percent}}", str(percent)).replace("{{tool_users_list_html}}", tool_users_list_html)
     return render_template_string(html)
 
