@@ -15,6 +15,7 @@ from flask import (
     render_template_string,
     request,
     session,
+    url_for,
 )
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -642,16 +643,21 @@ def login(): return render_template_string(LOGIN)
 @app.route("/auth/google")
 @rate_limit(max_requests=5, window_seconds=60)
 def auth_google():
-    return google.authorize_redirect(request.url_root.rstrip("/") + "/auth/callback")
+    redirect_uri = url_for("callback", _external=True)
+    return google.authorize_redirect(request, redirect_uri)
 
 @app.route("/auth/callback")
 def callback():
     try:
         token = google.authorize_access_token()
-        user = token.get("userinfo") or google.get("https://openidconnect.googleapis.com/v1/userinfo").json()
-        session["user"] = user
+        userinfo = token.get("userinfo")
+        if not userinfo:
+            resp = google.get("https://openidconnect.googleapis.com/v1/userinfo")
+            userinfo = resp.json()
+        session["user"] = userinfo
         return redirect("/dashboard")
-    except:
+    except Exception as e:
+        print(f"Auth Error: {e}")
         return redirect("/login")
 
 @app.route("/dashboard")
@@ -811,7 +817,6 @@ def api_edit_user():
         return jsonify({"message": f"Credentials updated for {old_u}"})
     except: return jsonify({"message": "Update failed."})
 
-# External Client Authentication API Endpoint (Used by Anti-Crack Payload)
 @app.route("/api/auth_login", methods=["POST"])
 def api_auth_login():
     data = request.json or {}
@@ -828,7 +833,6 @@ def api_auth_login():
         return jsonify({"status": "failed", "message": "Invalid username or password."}), 401
         
     u_data = user[0]
-    # u_data indices: 0:id, 1:username, 2:password, 3:app_token, 4:status, 5:hwid, 6:last_login, 7:created_at
     if u_data[4] == "banned":
         return jsonify({"status": "failed", "message": "Access Denied: User is banned."}), 403
         
