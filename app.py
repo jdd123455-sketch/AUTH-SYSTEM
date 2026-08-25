@@ -309,6 +309,24 @@ def api_auth_login():
             return jsonify({"status":"valid", "message":"Welcome back"})
         else:
             return jsonify({"status":"hwid_mismatch", "message":"Locked to another PC. Ask Admin to Reset HWID."})
+@app.route("/verify", methods=["POST"])
+def verify():
+    data = request.form.get('key') or (request.get_json(silent=True) or {}).get('key')
+    if not data:
+        return jsonify({"success": False, "message": "No key provided"}), 400
+
+    # Tumhare purane system ke hisab se username = key hai
+    res = db("SELECT * FROM tool_users WHERE username=?", (data,))
+
+    if not res:
+        return jsonify({"success": False, "message": "Invalid Key"})
+
+    user_row = res[0]
+    if user_row[4] == 'banned':
+        return jsonify({"success": False, "message": "Banned"})
+
+    # Sab sahi hai toh true bhej
+    return jsonify({"success": True, "message": "Valid", "true": True})
 
 @app.route("/logout")
 def logout():
