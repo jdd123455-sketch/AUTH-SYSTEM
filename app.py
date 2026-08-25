@@ -212,38 +212,7 @@ COMMON_HEAD = """
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    opacity: .96;
-    mix-blend-mode: screen;
-  }
-
-  /* Ambient cyber atmosphere */
-  .ambient-pulse {
-    position: fixed;
-    inset: -20%;
-    z-index: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(circle at 15% 20%, rgba(0,246,255,.07), transparent 22%),
-      radial-gradient(circle at 85% 30%, rgba(124,58,237,.07), transparent 25%),
-      radial-gradient(circle at 50% 100%, rgba(59,130,246,.055), transparent 28%);
-    animation: ambientDrift 12s ease-in-out infinite alternate;
-  }
-
-  @keyframes ambientDrift {
-    0%   { transform: scale(1) translate3d(-1%,0,0); opacity: .72; }
-    50%  { transform: scale(1.05) translate3d(1%,-1%,0); opacity: 1; }
-    100% { transform: scale(1.02) translate3d(0,1%,0); opacity: .78; }
-  }
-
-  /* Sharp cyber HUD vignette */
-  .hud-vignette {
-    position: fixed;
-    inset: 0;
-    z-index: 3;
-    pointer-events: none;
-    box-shadow:
-      inset 0 0 180px rgba(0,0,0,.88),
-      inset 0 0 55px rgba(0,246,255,.035);
+    opacity: .9;
   }
 
   body::before {
@@ -302,12 +271,6 @@ COMMON_HEAD = """
       transparent 72%,
       rgba(124,58,237,.045)
     );
-  }
-
-  .glass-card h1,
-  .glass-card h2,
-  .glass-card h3 {
-    text-shadow: 0 0 18px rgba(0,246,255,.08);
   }
 
   .glass-card {
@@ -531,15 +494,13 @@ CURSOR_SCRIPT = """
   window.onresize = resizeCanvas;
   
   let particlesArray = [];
-  for(let i = 0; i < 210; i++) {
+  for(let i = 0; i < 90; i++) {
     particlesArray.push({ 
       x: Math.random() * canvasElement.width, 
       y: Math.random() * canvasElement.height, 
       r: Math.random() * 1.8 + 0.5, 
       vy: Math.random() * 0.6 + 0.2, 
-      opacity: Math.random() * 0.72 + 0.18,
-      vx: (Math.random() - 0.5) * 0.22,
-      pulse: Math.random() * Math.PI * 2
+      opacity: Math.random() * 0.7 + 0.3 
     });
   }
   
@@ -550,9 +511,7 @@ CURSOR_SCRIPT = """
         y: e.clientY, 
         r: Math.random() * 2 + 1, 
         vy: -(Math.random() * 1.2 + 0.4), 
-        opacity: 1,
-        vx: (Math.random() - 0.5) * 0.7,
-        pulse: Math.random() * Math.PI * 2
+        opacity: 1 
       });
       if(particlesArray.length > 120) {
         particlesArray.shift();
@@ -567,48 +526,18 @@ CURSOR_SCRIPT = """
       if(p.opacity > 0.3) {
         p.opacity -= 0.005;
       }
-      p.x += p.vx;
-      p.pulse += 0.025;
-
-      if(p.x < -10) p.x = canvasElement.width + 10;
-      if(p.x > canvasElement.width + 10) p.x = -10;
-
       if(p.y < 0) { 
         p.y = canvasElement.height; 
         p.x = Math.random() * canvasElement.width; 
-        p.opacity = Math.random() * 0.72 + 0.18; 
+        p.opacity = Math.random() * 0.7 + 0.3; 
       }
-
-      const pulseSize = p.r + Math.sin(p.pulse) * 0.45;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, Math.max(.35, pulseSize), 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(34, 211, 238, ${p.opacity})`;
       ctx.shadowBlur = 10;
       ctx.shadowColor = '#22d3ee';
       ctx.fill();
     });
-
-    // Subtle proximity links — gives the background a high-end HUD/network feel.
-    for(let i = 0; i < particlesArray.length; i++) {
-      for(let j = i + 1; j < particlesArray.length; j++) {
-        const a = particlesArray[i];
-        const b = particlesArray[j];
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if(dist < 105) {
-          const alpha = (1 - dist / 105) * 0.075;
-          ctx.beginPath();
-          ctx.moveTo(a.x, a.y);
-          ctx.lineTo(b.x, b.y);
-          ctx.strokeStyle = `rgba(0,246,255,${alpha})`;
-          ctx.lineWidth = .55;
-          ctx.stroke();
-        }
-      }
-    }
-
     requestAnimationFrame(animateParticles);
   }
   animateParticles();
@@ -625,7 +554,7 @@ LANDING = """<!DOCTYPE html>
 """ + COMMON_HEAD + """
 </head>
 <body class="text-white overflow-x-hidden relative min-h-screen flex flex-col justify-between">
-<canvas id="c"></canvas><div class="ambient-pulse"></div><div class="hud-vignette"></div>
+<canvas id="c"></canvas>
 
 <nav class="relative z-10 flex justify-between items-center px-10 py-5 bg-black/55 backdrop-blur-xl border-b border-cyan-400/15 shadow-[0_8px_35px_rgba(0,0,0,0.35)]">
   <div class="flex items-center gap-3">
@@ -683,7 +612,7 @@ LOGIN = """<!DOCTYPE html>
 """ + COMMON_HEAD + """
 </head>
 <body class="flex items-center justify-center h-screen overflow-hidden relative">
-<canvas id="c"></canvas><div class="ambient-pulse"></div><div class="hud-vignette"></div>
+<canvas id="c"></canvas>
 <div class="relative z-10 w-[420px] glass rounded-[28px] p-9 text-center shadow-[0_0_60px_rgba(34,211,238,0.2)]">
   <div class="w-16 h-16 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_25px_#22d3ee]">👾</div>
   <h1 class="font-black text-2xl mt-5 text-white bg-gradient-to-r from-cyan-300 to-indigo-400 bg-clip-text text-transparent">HSL CORP</h1>
@@ -710,7 +639,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </style>
 </head>
 <body class="flex h-screen text-white overflow-hidden relative">
-<canvas id="c"></canvas><div class="ambient-pulse"></div><div class="hud-vignette"></div>
+<canvas id="c"></canvas>
 
 <div class="w-[260px] bg-[#02040a]/90 backdrop-blur-2xl border-r border-cyan-400/10 shadow-[15px_0_45px_rgba(0,0,0,0.35)] flex flex-col relative z-10">
   <div class="p-5 flex items-center gap-3 border-b border-white/10">
