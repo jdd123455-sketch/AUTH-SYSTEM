@@ -27,7 +27,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 app.secret_key = os.environ.get(
     "FLASK_SECRET_KEY", 
-    "hsl_corp_brutal_secure_key_2026_production"
+    "hsl_corp_ultra_secure_key_2026_x89_production_ready"
 )
 
 app.config.update(
@@ -79,7 +79,7 @@ def rate_limit(max_requests=10, window_seconds=60):
             if len(REQUEST_HISTORY[ip]) >= max_requests:
                 return jsonify({
                     "status": "rate_limited",
-                    "message": "Too many attempts. Request blocked by brutal firewall."
+                    "message": "Too many attempts. Request blocked due to security policies."
                 }), 429
                 
             REQUEST_HISTORY[ip].append(now)
@@ -163,18 +163,16 @@ def db(query, params=(), fetch=False):
     return data
 
 # ==========================================
-# BRUTAL CYBERPUNK STYLES & CUSTOM CURSOR
+# CSS STYLES & ANIMATED CROSSHAIR CURSOR
 # ==========================================
 
 COMMON_HEAD = """
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
-  
   body { 
-    background: #020408; 
+    background: #060810; 
     cursor: none; 
-    font-family: 'JetBrains Mono', monospace; 
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
   }
   
   #c { 
@@ -185,42 +183,41 @@ COMMON_HEAD = """
   }
   
   .glass { 
-    backdrop-filter: blur(25px); 
-    background: rgba(5, 8, 18, 0.85); 
-    border: 1px solid rgba(0, 255, 204, 0.25); 
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(20px); 
+    background: rgba(13, 16, 28, 0.75); 
+    border: 1px solid rgba(34, 211, 238, 0.15); 
   }
   
   .glass-card { 
-    background: rgba(8, 12, 24, 0.75); 
-    border: 1px solid rgba(0, 255, 204, 0.18); 
-    backdrop-filter: blur(15px); 
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+    background: rgba(15, 20, 35, 0.65); 
+    border: 1px solid rgba(34, 211, 238, 0.12); 
+    backdrop-filter: blur(12px); 
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
   }
   
   .glass-card:hover { 
-    border-color: rgba(0, 255, 204, 0.6); 
-    transform: translateY(-3px); 
-    box-shadow: 0 10px 30px -5px rgba(0,255,204,0.3); 
+    border-color: rgba(34, 211, 238, 0.4); 
+    transform: translateY(-4px); 
+    box-shadow: 0 12px 35px -10px rgba(34,211,238,0.25); 
   }
   
   #cursor-dot { 
     position: fixed; 
     width: 6px; 
     height: 6px; 
-    background: #00ffcc; 
+    background: #22d3ee; 
     border-radius: 50%; 
     pointer-events: none; 
     z-index: 9999; 
     transform: translate(-50%, -50%); 
-    box-shadow: 0 0 12px #00ffcc, 0 0 24px #00ffcc; 
+    box-shadow: 0 0 10px #22d3ee, 0 0 20px #22d3ee; 
   }
   
   #cursor-crosshair { 
     position: fixed; 
-    width: 32px; 
-    height: 32px; 
-    border: 1.5px solid rgba(0, 255, 204, 0.7); 
+    width: 30px; 
+    height: 30px; 
+    border: 1px solid rgba(34, 211, 238, 0.6); 
     border-radius: 50%; 
     pointer-events: none; 
     z-index: 9998; 
@@ -231,10 +228,10 @@ COMMON_HEAD = """
     content: ''; 
     position: absolute; 
     top: 50%; 
-    left: -6px; 
-    width: 42px; 
-    height: 1.5px; 
-    background: rgba(0, 255, 204, 0.8); 
+    left: -5px; 
+    width: 38px; 
+    height: 1px; 
+    background: rgba(34, 211, 238, 0.7); 
     transform: translateY(-50%); 
   }
   
@@ -242,23 +239,23 @@ COMMON_HEAD = """
     content: ''; 
     position: absolute; 
     left: 50%; 
-    top: -6px; 
-    height: 42px; 
-    width: 1.5px; 
-    background: rgba(0, 255, 204, 0.8); 
+    top: -5px; 
+    height: 38px; 
+    width: 1px; 
+    background: rgba(34, 211, 238, 0.7); 
     transform: translateX(-50%); 
   }
   
   #cursor-orbit { 
     position: fixed; 
-    width: 52px; 
-    height: 52px; 
-    border: 1px dashed rgba(255, 0, 85, 0.6); 
+    width: 48px; 
+    height: 48px; 
+    border: 1px dashed rgba(99, 102, 241, 0.6); 
     border-radius: 50%; 
     pointer-events: none; 
     z-index: 9997; 
     transform: translate(-50%, -50%); 
-    animation: spinOrbit 4s linear infinite; 
+    animation: spinOrbit 6s linear infinite; 
   }
   
   @keyframes spinOrbit { 
@@ -286,8 +283,8 @@ CURSOR_SCRIPT = """
   });
 
   function renderCursor() {
-    cx += (mx - cx) * 0.22;
-    cy += (my - cy) * 0.22;
+    cx += (mx - cx) * 0.18;
+    cy += (my - cy) * 0.18;
     cross.style.left = cx + 'px';
     cross.style.top = cy + 'px';
     orbit.style.left = cx + 'px';
@@ -307,26 +304,26 @@ CURSOR_SCRIPT = """
   window.onresize = resizeCanvas;
   
   let particlesArray = [];
-  for(let i = 0; i < 110; i++) {
+  for(let i = 0; i < 90; i++) {
     particlesArray.push({ 
       x: Math.random() * canvasElement.width, 
       y: Math.random() * canvasElement.height, 
-      r: Math.random() * 1.8 + 0.6, 
-      vy: Math.random() * 0.8 + 0.3, 
-      opacity: Math.random() * 0.8 + 0.2 
+      r: Math.random() * 1.8 + 0.5, 
+      vy: Math.random() * 0.6 + 0.2, 
+      opacity: Math.random() * 0.7 + 0.3 
     });
   }
   
   window.addEventListener('mousemove', (e) => {
-    if(Math.random() > 0.3) {
+    if(Math.random() > 0.4) {
       particlesArray.push({ 
         x: e.clientX, 
         y: e.clientY, 
-        r: Math.random() * 2.2 + 1, 
-        vy: -(Math.random() * 1.5 + 0.5), 
+        r: Math.random() * 2 + 1, 
+        vy: -(Math.random() * 1.2 + 0.4), 
         opacity: 1 
       });
-      if(particlesArray.length > 140) {
+      if(particlesArray.length > 120) {
         particlesArray.shift();
       }
     }
@@ -337,18 +334,18 @@ CURSOR_SCRIPT = """
     particlesArray.forEach(p => {
       p.y -= p.vy;
       if(p.opacity > 0.3) {
-        p.opacity -= 0.004;
+        p.opacity -= 0.005;
       }
       if(p.y < 0) { 
         p.y = canvasElement.height; 
         p.x = Math.random() * canvasElement.width; 
-        p.opacity = Math.random() * 0.8 + 0.2; 
+        p.opacity = Math.random() * 0.7 + 0.3; 
       }
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(0, 255, 204, ${p.opacity})`;
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = '#00ffcc';
+      ctx.fillStyle = `rgba(34, 211, 238, ${p.opacity})`;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#22d3ee';
       ctx.fill();
     });
     requestAnimationFrame(animateParticles);
@@ -369,51 +366,51 @@ LANDING = """<!DOCTYPE html>
 <body class="text-white overflow-x-hidden relative min-h-screen flex flex-col justify-between">
 <canvas id="c"></canvas>
 
-<nav class="relative z-10 flex justify-between items-center px-10 py-5 bg-black/60 backdrop-blur-xl border-b border-[#00ffcc]/20">
+<nav class="relative z-10 flex justify-between items-center px-10 py-5 bg-black/40 backdrop-blur-md border-b border-cyan-500/10">
   <div class="flex items-center gap-3">
-    <div class="w-10 h-10 bg-gradient-to-r from-[#00ffcc] to-[#ff0055] rounded-xl flex items-center justify-center shadow-[0_0_20px_#00ffcc]">⚡</div>
+    <div class="w-10 h-10 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_18px_#22d3ee]">👾</div>
     <div>
-      <p class="font-extrabold text-sm tracking-widest text-[#00ffcc]">HSL CORP</p>
-      <p class="text-[9px] text-zinc-400 font-bold tracking-widest">BRUTAL LICENSE INFRASTRUCTURE</p>
+      <p class="font-black text-sm tracking-wider">HSL CORP</p>
+      <p class="text-[9px] text-cyan-400 font-bold tracking-widest">KEYAUTH STYLE AUTHENTICATION SYSTEM</p>
     </div>
   </div>
   <div class="flex gap-4">
-    <a href="/login" class="bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700 px-6 py-2.5 rounded-full text-xs font-bold transition">Sign In</a>
-    <a href="/dashboard" class="bg-gradient-to-r from-[#00ffcc] to-[#ff0055] hover:opacity-90 px-6 py-2.5 rounded-full text-xs font-black shadow-[0_0_25px_rgba(0,255,204,0.6)] text-black transition">Dashboard</a>
+    <a href="/login" class="bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-700 px-6 py-2.5 rounded-full text-xs font-semibold transition">Sign In</a>
+    <a href="/dashboard" class="bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 px-6 py-2.5 rounded-full text-xs font-bold shadow-[0_0_20px_rgba(34,211,238,0.5)] transition">Dashboard</a>
   </div>
 </nav>
 
-<div class="relative z-10 flex flex-col items-center text-center pt-24 px-4">
-  <div class="inline-flex items-center gap-2 border border-[#00ffcc]/40 bg-[#00ffcc]/10 px-5 py-2 rounded-full text-xs text-[#00ffcc] font-bold mb-8 shadow-[0_0_20px_rgba(0,255,204,0.3)]">
-    <span>🔥</span> HARDWARE-LOCKED ELITE PROTECTION SYSTEM
+<div class="relative z-10 flex flex-col items-center text-center pt-20 px-4">
+  <div class="inline-flex items-center gap-2 border border-cyan-500/30 bg-cyan-500/10 px-4 py-1.5 rounded-full text-xs text-cyan-300 font-semibold mb-8 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+    <span>⚡</span> Next-Gen Secure Software Panel
   </div>
-  <h1 class="text-6xl md:text-8xl font-black bg-gradient-to-r from-[#00ffcc] via-white to-[#ff0055] bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(0,255,204,0.5)] max-w-5xl leading-none">HSL CORP AUTH</h1>
-  <p class="text-zinc-400 mt-6 font-semibold text-lg max-w-2xl">Unbreakable Anti-Crack, HWID Binding & Instant License Control Panel.</p>
-  <a href="/login" class="bg-gradient-to-r from-[#00ffcc] to-[#ff0055] hover:scale-105 px-10 py-4 rounded-2xl text-sm font-black text-black shadow-[0_0_35px_rgba(0,255,204,0.7)] mt-10 transition duration-300 flex items-center gap-2">🚀 INITIALIZE SYSTEM</a>
+  <h1 class="text-6xl md:text-7xl font-black bg-gradient-to-r from-cyan-300 via-cyan-400 to-indigo-500 bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(34,211,238,0.4)] max-w-5xl leading-tight">HSL CORP AUTH</h1>
+  <p class="text-zinc-400 mt-6 font-medium text-lg max-w-2xl">Ultimate Hardware-Locked Licensing & Application Protection Infrastructure.</p>
+  <a href="/login" class="bg-gradient-to-r from-cyan-400 to-indigo-600 hover:scale-105 px-9 py-4 rounded-2xl text-sm font-bold shadow-[0_0_30px_rgba(34,211,238,0.6)] mt-9 transition duration-300 flex items-center gap-2">🚀 Get Started</a>
 </div>
 
 <div class="relative z-10 w-full max-w-6xl mx-auto px-6 py-20">
   <div class="grid md:grid-cols-3 gap-8">
     <div class="glass-card rounded-2xl p-7">
-      <div class="w-12 h-12 rounded-xl bg-[#00ffcc]/15 border border-[#00ffcc]/40 flex items-center justify-center text-2xl mb-4">🛡️</div>
-      <h3 class="font-bold text-lg text-[#00ffcc]">Motherboard HWID Lock</h3>
-      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Instantly locks activations to hardware signatures, completely blocking leaks, reverse engineering, and multi-user sharing.</p>
+      <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-2xl mb-4">🔐</div>
+      <h3 class="font-bold text-lg text-cyan-300">Hardware-Locked Protection</h3>
+      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Binds license activations to distinct motherboard hash signatures, completely mitigating account-sharing and unauthorized leaks.</p>
     </div>
     <div class="glass-card rounded-2xl p-7">
-      <div class="w-12 h-12 rounded-xl bg-[#ff0055]/15 border border-[#ff0055]/40 flex items-center justify-center text-2xl mb-4">⚡</div>
-      <h3 class="font-bold text-lg text-[#ff0055]">Anti-Debugger Payload</h3>
-      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Dynamic SHA-256 request signing foils Fiddler, Wireshark, and HTTP Debugger interception out of the box.</p>
+      <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-2xl mb-4">🛡️</div>
+      <h3 class="font-bold text-lg text-indigo-300">Hardened API Security</h3>
+      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Protects endpoint payloads using dynamic SHA-256 signatures, defending against Fiddler, HTTP Debugger, and response spoofing.</p>
     </div>
     <div class="glass-card rounded-2xl p-7">
-      <div class="w-12 h-12 rounded-xl bg-[#00ffcc]/15 border border-[#00ffcc]/40 flex items-center justify-center text-2xl mb-4">👑</div>
-      <h3 class="font-bold text-lg text-[#00ffcc]">Brutal Admin Console</h3>
-      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Manage users, issue instant permanent bans, execute HWID resets, and monitor active connections in real-time.</p>
+      <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-2xl mb-4">⚡</div>
+      <h3 class="font-bold text-lg text-cyan-300">Instant Admin Console</h3>
+      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Manage user registrations, execute immediate HWID resets, issue instant bans, and monitor active app tokens in real time.</p>
     </div>
   </div>
 </div>
 
 <footer class="relative z-10 text-center py-6 border-t border-white/5 text-xs text-zinc-600">
-  &copy; 2026 HSL CORP. ALL RIGHTS RESERVED.
+  &copy; 2026 HSL CORP. All rights reserved.
 </footer>
 """ + CURSOR_SCRIPT + """
 </body>
@@ -426,12 +423,12 @@ LOGIN = """<!DOCTYPE html>
 </head>
 <body class="flex items-center justify-center h-screen overflow-hidden relative">
 <canvas id="c"></canvas>
-<div class="relative z-10 w-[440px] glass rounded-[32px] p-10 text-center shadow-[0_0_80px_rgba(0,255,204,0.3)]">
-  <div class="w-16 h-16 bg-gradient-to-r from-[#00ffcc] to-[#ff0055] rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_30px_#00ffcc] text-black font-black text-2xl">⚡</div>
-  <h1 class="font-black text-3xl mt-6 text-white bg-gradient-to-r from-[#00ffcc] to-[#ff0055] bg-clip-text text-transparent">HSL CORP</h1>
-  <p class="text-xs text-zinc-400 mt-2 tracking-wider">AUTHENTICATE VIA SECURE GATEWAY</p>
-  <a href="/auth/google" class="mt-9 w-full bg-white hover:bg-zinc-100 text-black rounded-xl py-4 flex justify-center items-center gap-3 font-extrabold text-sm shadow-xl hover:scale-[1.02] transition">
-    <img src="https://www.svgrepo.com/show/475656/google-color.svg" width=22> Sign In with Google
+<div class="relative z-10 w-[420px] glass rounded-[28px] p-9 text-center shadow-[0_0_60px_rgba(34,211,238,0.2)]">
+  <div class="w-16 h-16 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_25px_#22d3ee]">👾</div>
+  <h1 class="font-black text-2xl mt-5 text-white bg-gradient-to-r from-cyan-300 to-indigo-400 bg-clip-text text-transparent">HSL CORP</h1>
+  <p class="text-xs text-zinc-400 mt-1">Sign in using verified OAuth endpoints</p>
+  <a href="/auth/google" class="mt-8 w-full bg-white hover:bg-zinc-100 text-black rounded-xl py-3.5 flex justify-center items-center gap-3 font-bold text-sm shadow-lg hover:scale-[1.02] transition">
+    <img src="https://www.svgrepo.com/show/475656/google-color.svg" width=20> Continue with Google
   </a>
 </div>
 """ + CURSOR_SCRIPT + """
@@ -444,116 +441,115 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 """ + COMMON_HEAD + """
 <style>
   .side-active { 
-    background: rgba(0,255,204,0.2); 
-    border: 1px solid rgba(0,255,204,0.5); 
-    color: #00ffcc !important; 
-    font-weight: 800; 
-    box-shadow: 0 0 15px rgba(0,255,204,0.2);
+    background: rgba(34,211,238,0.15); 
+    border: 1px solid rgba(34,211,238,0.4); 
+    color: #22d3ee !important; 
+    font-weight: bold; 
   }
 </style>
 </head>
 <body class="flex h-screen text-white overflow-hidden relative">
 <canvas id="c"></canvas>
 
-<div class="w-[280px] bg-black/90 backdrop-blur-2xl border-r border-[#00ffcc]/20 flex flex-col relative z-10">
-  <div class="p-6 flex items-center gap-3 border-b border-[#00ffcc]/20">
-    <div class="w-10 h-10 bg-gradient-to-r from-[#00ffcc] to-[#ff0055] rounded-xl flex items-center justify-center shadow-[0_0_15px_#00ffcc] text-black font-black">⚡</div>
+<div class="w-[260px] bg-black/80 backdrop-blur-xl border-r border-white/10 flex flex-col relative z-10">
+  <div class="p-5 flex items-center gap-3 border-b border-white/10">
+    <div class="w-9 h-9 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_12px_#22d3ee]">👾</div>
     <div>
-      <p class="font-black text-sm tracking-wider text-[#00ffcc]">HSL CORP</p>
-      <p class="text-[9px] text-zinc-400 font-bold tracking-widest">BRUTAL CONSOLE</p>
+      <p class="font-black text-sm tracking-wide">HSL CORP</p>
+      <p class="text-[9px] text-cyan-400 font-bold">Developer Console</p>
     </div>
   </div>
   
-  <div class="p-4 space-y-1.5 text-xs" id="sidebar">
-    <button onclick="showTab('overview')" id="btn-overview" class="side-active w-full text-left rounded-xl px-4 py-3 transition">🏠 Overview</button>
-    <button onclick="showTab('applications')" id="btn-applications" class="w-full text-left text-zinc-400 hover:text-white px-4 py-3 transition">📦 Applications</button>
-    <button onclick="showTab('tool_users')" id="btn-tool_users" class="w-full text-left text-zinc-400 hover:text-white px-4 py-3 transition">👤 Users ({{tool_user_count}}/{{limit_text}})</button>
-    <button onclick="showTab('keys')" id="btn-keys" class="w-full text-left text-zinc-400 hover:text-white px-4 py-3 transition">🔑 License Keys</button>
-    <button onclick="showTab('integrate')" id="btn-integrate" class="w-full text-left text-zinc-400 hover:text-white px-4 py-3 transition">🔌 Anti-Crack Integration</button>
-    <button onclick="showTab('billing')" id="btn-billing" class="w-full text-left text-zinc-400 hover:text-white px-4 py-3 transition">💎 Billing / Upgrade</button>
+  <div class="p-3 space-y-1 text-xs" id="sidebar">
+    <button onclick="showTab('overview')" id="btn-overview" class="side-active w-full text-left rounded-xl px-4 py-2.5 transition">🏠 Overview</button>
+    <button onclick="showTab('applications')" id="btn-applications" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">📦 Applications</button>
+    <button onclick="showTab('tool_users')" id="btn-tool_users" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">👤 Users ({{tool_user_count}}/{{limit_text}})</button>
+    <button onclick="showTab('keys')" id="btn-keys" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔑 License Keys</button>
+    <button onclick="showTab('integrate')" id="btn-integrate" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔌 Anti-Crack Integration</button>
+    <button onclick="showTab('billing')" id="btn-billing" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">💎 Billing / Upgrade</button>
   </div>
   
-  <div class="mt-auto p-4 border-t border-[#00ffcc]/20 flex items-center gap-3 bg-black/60">
-    <img src="https://ui-avatars.com/api/?name={{name}}&background=00ffcc&color=000" class="w-9 h-9 rounded-full border border-[#00ffcc]/60">
-    <div class="overflow-hidden">
+  <div class="mt-auto p-4 border-t border-white/10 flex items-center gap-3 bg-black/40">
+    <img src="https://ui-avatars.com/api/?name={{name}}&background=22d3ee&color=fff" class="w-8 h-8 rounded-full border border-cyan-400/40">
+    <div>
       <p class="text-[11px] font-bold truncate w-[110px]">{{email}}</p>
-      <p class="text-[9px] {{plan_color}} font-black tracking-wider">{{plan_text}}</p>
+      <p class="text-[9px] {{plan_color}} font-bold">{{plan_text}}</p>
     </div>
-    <a href="/logout" class="ml-auto text-[11px] text-red-400 hover:text-red-300 font-bold">Logout</a>
+    <a href="/logout" class="ml-auto text-[11px] text-red-400 hover:text-red-300 font-semibold">Logout</a>
   </div>
 </div>
 
 <div class="flex-1 overflow-y-auto relative z-10">
-  <div class="h-16 bg-black/60 backdrop-blur-md border-b border-[#00ffcc]/20 flex items-center justify-between px-8">
-    <p class="text-xs font-black tracking-widest text-[#00ffcc]">SYSTEM STATUS: ACTIVE // PLAN: {{plan_text}}</p>
-    <button onclick="showTab('billing')" class="text-xs bg-gradient-to-r from-[#00ffcc] to-[#ff0055] hover:opacity-90 text-black px-6 py-2.5 rounded-full font-black shadow-[0_0_20px_rgba(0,255,204,0.5)] transition">UPGRADE TO UNLIMITED</button>
+  <div class="h-14 bg-black/40 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-8">
+    <p class="text-xs font-semibold tracking-wider text-cyan-300">HSL CONSOLE - {{plan_text}} PLAN</p>
+    <button onclick="showTab('billing')" class="text-xs bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 text-white px-5 py-2 rounded-full font-bold shadow-[0_0_15px_rgba(34,211,238,0.4)] transition">Upgrade to Unlimited</button>
   </div>
   
-  <div class="p-10">
+  <div class="p-8">
     <div id="tab-overview">
-      <h1 class="text-3xl font-black tracking-wide text-white">Dashboard Overview</h1>
-      <div class="mt-8 grid grid-cols-[1.4fr_1fr_0.8fr] gap-6">
-        <div class="glass-card rounded-2xl p-6">
-          <p class="text-[10px] font-black text-[#00ffcc] tracking-widest">ACTIVE TARGET APPLICATION</p>
-          <select id="appSelect" onchange="selectApp(this.value)" class="bg-black/90 border border-[#00ffcc]/30 rounded-xl px-4 py-3 text-xs mt-3 w-full font-bold focus:outline-none focus:border-[#00ffcc] text-white">{{app_options|safe}}</select>
+      <h1 class="text-2xl font-black">Dashboard Overview</h1>
+      <div class="mt-6 grid grid-cols-[1.3fr_1fr_0.7fr] gap-4">
+        <div class="glass-card rounded-2xl p-5">
+          <p class="text-[10px] font-bold text-cyan-400 tracking-wider">ACTIVE APPLICATION</p>
+          <select id="appSelect" onchange="selectApp(this.value)" class="bg-black/80 border border-white/20 rounded-xl px-3 py-2.5 text-xs mt-3 w-full font-semibold focus:outline-none focus:border-cyan-400">{{app_options}}</select>
         </div>
-        <div class="glass-card rounded-2xl p-6">
-          <p class="text-[10px] font-black text-zinc-400 tracking-widest">MASTER APP TOKEN</p>
-          <div class="mt-3 flex justify-between items-center bg-black/90 rounded-xl px-4 py-2.5 border border-white/15">
+        <div class="glass-card rounded-2xl p-5">
+          <p class="text-[10px] font-bold text-zinc-400 tracking-wider">MASTER APP TOKEN</p>
+          <div class="mt-3 flex justify-between items-center bg-black/80 rounded-xl px-3 py-2 border border-white/10">
             <p id="tokenDisplay" class="text-xs font-mono text-zinc-300 truncate">{{active_token}}</p>
-            <button onclick="copyToken()" class="text-[10px] bg-gradient-to-r from-[#00ffcc] to-[#ff0055] px-3.5 py-1.5 rounded-lg font-black text-black hover:scale-105 transition">COPY</button>
+            <button onclick="copyToken()" class="text-[10px] bg-gradient-to-r from-cyan-400 to-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:scale-105 transition">Copy</button>
           </div>
         </div>
-        <div class="glass-card rounded-2xl p-6">
-          <p class="text-[10px] font-black text-zinc-400 tracking-widest">PLAN CAPACITY</p>
-          <p class="text-xs font-black mt-3 text-white">{{tool_user_count}} / {{limit_text}} USERS</p>
-          <div class="w-full bg-zinc-900 h-2.5 mt-3 rounded-full overflow-hidden border border-white/10">
-            <div class="bg-gradient-to-r from-[#00ffcc] to-[#ff0055] h-2.5 rounded-full shadow-[0_0_10px_#00ffcc]" style="width:{{percent}}%"></div>
+        <div class="glass-card rounded-2xl p-5">
+          <p class="text-[10px] font-bold text-zinc-400 tracking-wider">PLAN LIMIT</p>
+          <p class="text-xs font-bold mt-3">{{tool_user_count}} / {{limit_text}} Used</p>
+          <div class="w-full bg-zinc-800 h-2 mt-3 rounded-full overflow-hidden">
+            <div class="bg-gradient-to-r from-cyan-400 to-indigo-600 h-2 rounded-full" style="width:{{percent}}%"></div>
           </div>
         </div>
       </div>
       
-      <div class="mt-8 glass-card rounded-2xl p-8 border-[#00ffcc]/30">
-        <p class="text-lg font-black text-white flex items-center gap-2"><span>⚡</span> Create New Secure User</p>
-        <div class="flex gap-4 mt-5">
-          <input id="newUsername" placeholder="Enter Username" class="flex-1 bg-black/90 border border-white/20 rounded-xl px-5 py-3.5 text-sm font-bold focus:outline-none focus:border-[#00ffcc] text-white placeholder-zinc-600">
-          <input id="newPassword" placeholder="Enter Password" class="flex-1 bg-black/90 border border-white/20 rounded-xl px-5 py-3.5 text-sm font-bold focus:outline-none focus:border-[#00ffcc] text-white placeholder-zinc-600">
+      <div class="mt-6 glass-card rounded-2xl p-7">
+        <p class="text-base font-bold text-white">+ Create New Secure User</p>
+        <div class="flex gap-3 mt-4">
+          <input id="newUsername" placeholder="Username" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
+          <input id="newPassword" placeholder="Password" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
         </div>
-        <button onclick="createUser()" class="mt-6 w-full bg-gradient-to-r from-[#00ffcc] to-[#ff0055] hover:opacity-90 py-3.5 rounded-xl text-sm font-black text-black shadow-[0_0_25px_rgba(0,255,204,0.5)] transition">⚡ DEPLOY NEW USER</button>
+        <button onclick="createUser()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create User</button>
       </div>
     </div>
 
     <div id="tab-applications" class="hidden">
-      <h1 class="text-3xl font-black tracking-wide text-white">Applications Management</h1>
-      <div class="glass-card mt-8 rounded-2xl p-8">
-        <div class="space-y-4 mb-8">{{app_list_html|safe}}</div>
-        <div class="border-t border-white/10 pt-6">
-          <p class="text-base font-black text-white">+ Create New Application</p>
-          <input id="newAppName" placeholder="Application Name" class="mt-4 w-full bg-black/90 border border-white/20 rounded-xl px-5 py-3.5 text-sm font-bold focus:outline-none focus:border-[#00ffcc] text-white placeholder-zinc-600">
-          <button onclick="createApp()" class="mt-5 w-full bg-gradient-to-r from-[#00ffcc] to-[#ff0055] py-3.5 rounded-xl text-sm font-black text-black shadow-[0_0_25px_rgba(0,255,204,0.5)] transition">CREATE APPLICATION</button>
+      <h1 class="text-2xl font-black">Applications</h1>
+      <div class="glass-card mt-6 rounded-2xl p-7">
+        <div class="space-y-3 mb-6">{{app_list_html}}</div>
+        <div class="border-t border-white/10 pt-5">
+          <p class="text-base font-bold">+ Create New App</p>
+          <input id="newAppName" placeholder="App Name" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
+          <button onclick="createApp()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create Application</button>
         </div>
       </div>
     </div>
 
     <div id="tab-tool_users" class="hidden">
-      <h1 class="text-3xl font-black tracking-wide text-white">Registered Users ({{tool_user_count}}/{{limit_text}})</h1>
-      <div class="glass-card mt-8 rounded-2xl p-6">
-        <div class="space-y-3 text-xs font-mono">{{tool_users_list_html|safe}}</div>
+      <h1 class="text-2xl font-black">Username / Pass Users ({{tool_user_count}}/{{limit_text}})</h1>
+      <div class="glass-card mt-6 rounded-2xl p-6">
+        <div class="space-y-3 text-xs font-mono">{{tool_users_list_html}}</div>
       </div>
     </div>
 
     <div id="tab-keys" class="hidden">
-      <h1 class="text-3xl font-black tracking-wide text-white">License Keys</h1>
-      <div class="glass-card mt-8 rounded-2xl p-6">
-        <div class="space-y-3 text-xs font-mono">{{keys_list_html|safe}}</div>
+      <h1 class="text-2xl font-black">License Keys</h1>
+      <div class="glass-card mt-6 rounded-2xl p-6">
+        <div class="space-y-3 text-xs font-mono">{{keys_list_html}}</div>
       </div>
     </div>
 
     <div id="tab-integrate" class="hidden">
-      <h1 class="text-3xl font-black tracking-wide text-white">Anti-Crack Integration Code</h1>
-      <div class="glass-card mt-8 rounded-2xl p-8 border-[#00ffcc]/30">
-        <p class="text-xs font-black text-[#00ffcc] tracking-wider">SECURE PAYLOAD SIGNING & HARDWARE BINDING SCRIPT</p>
-        <pre class="mt-5 bg-black/95 border border-[#00ffcc]/20 rounded-xl p-6 text-xs font-mono overflow-x-auto text-[#00ffcc] leading-relaxed shadow-inner">
+      <h1 class="text-2xl font-black">Secure Client Integration Code</h1>
+      <div class="glass-card mt-6 rounded-2xl p-7">
+        <p class="text-xs font-bold text-cyan-300">Encrypted Payload Verification Script (Anti-Fiddler/Anti-HTTP Debugger)</p>
+        <pre class="mt-4 bg-black/90 border border-white/10 rounded-xl p-5 text-xs font-mono overflow-x-auto text-green-400 leading-relaxed">
 import requests
 import subprocess
 import hashlib
@@ -591,19 +587,19 @@ def secure_login(username, password):
     </div>
 
     <div id="tab-billing" class="hidden">
-      <h1 class="text-3xl font-black tracking-wide text-white">Billing & License Plans</h1>
-      <div class="grid grid-cols-2 gap-8 mt-8">
-        <div class="glass-card rounded-2xl p-8">
-          <p class="font-bold text-xs text-zinc-400 tracking-widest">STANDARD TIER</p>
-          <p class="text-5xl font-black mt-3 text-white">₹0</p>
-          <p class="text-xs text-zinc-400 mt-4 leading-relaxed font-semibold">✓ 10 Users / Keys Only<br>✓ 2 Applications Max<br>✓ Hardware ID Lock Engine</p>
-          <p class="mt-8 text-xs bg-zinc-900 border border-white/10 rounded-full px-5 py-2 inline-block font-black text-yellow-400">CURRENT PLAN: {{plan_text}}</p>
+      <h1 class="text-2xl font-black">Billing / Plans</h1>
+      <div class="grid grid-cols-2 gap-6 mt-6">
+        <div class="glass-card rounded-2xl p-7">
+          <p class="font-bold text-sm text-zinc-300">FREE PLAN</p>
+          <p class="text-4xl font-black mt-2">₹0</p>
+          <p class="text-xs text-zinc-400 mt-3 leading-relaxed">✓ 10 Users / Keys Only<br>✓ 2 Applications (With Delete Option)<br>✓ HWID Lock</p>
+          <p class="mt-6 text-xs bg-zinc-800/80 rounded-full px-4 py-1.5 inline-block font-semibold">Current: {{plan_text}}</p>
         </div>
-        <div class="glass-card rounded-2xl p-8 border-[#00ffcc]/60 bg-[#00ffcc]/10 shadow-[0_0_40px_rgba(0,255,204,0.15)]">
-          <p class="font-bold text-xs text-[#00ffcc] tracking-widest">ELITE PRO UNLIMITED</p>
-          <p class="text-5xl font-black mt-3 text-white">₹499</p>
-          <p class="text-xs text-zinc-200 mt-4 leading-relaxed font-semibold">✓ Unlimited Users & Clients<br>✓ Unlimited Applications<br>✓ Unlimited License Keys<br>✓ Advanced Anti-Crack & Debugger Shield</p>
-          <a href="https://wa.me/919999999999" target="_blank" class="mt-8 block text-center bg-gradient-to-r from-[#00ffcc] to-[#ff0055] py-4 rounded-xl text-sm font-black text-black shadow-[0_0_25px_rgba(0,255,204,0.6)] transition hover:scale-[1.02]">⚡ UPGRADE VIA WHATSAPP</a>
+        <div class="glass-card rounded-2xl p-7 border-cyan-400/50 bg-cyan-500/10">
+          <p class="font-bold text-sm text-cyan-400">PRO UNLIMITED</p>
+          <p class="text-4xl font-black mt-2">₹499</p>
+          <p class="text-xs text-zinc-200 mt-3 leading-relaxed">✓ Unlimited Users<br>✓ Unlimited Apps<br>✓ Unlimited Keys<br>✓ Anti-Crack Engine</p>
+          <a href="https://wa.me/919999999999" target="_blank" class="mt-6 block text-center bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_25px_rgba(34,211,238,0.5)] transition">Buy on WhatsApp</a>
         </div>
       </div>
     </div>
@@ -630,7 +626,7 @@ function showTab(name) {
 async function createApp() {
     let name = document.getElementById('newAppName').value.trim();
     if(!name) {
-        alert('Enter Application Name!');
+        alert('Enter Name!');
         return;
     }
     let res = await fetch('/api/create_app', {
@@ -648,7 +644,7 @@ async function createApp() {
 }
 
 async function deleteApp(token) {
-    if(!confirm('Are you sure you want to delete this application? Associated data will be wiped.')) return;
+    if(!confirm('Are you sure you want to delete this application? Associated users might also be affected.')) return;
     let res = await fetch('/api/delete_app', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -662,7 +658,7 @@ async function deleteApp(token) {
 function copyToken() {
     let t = document.getElementById('tokenDisplay').innerText;
     navigator.clipboard.writeText(t);
-    alert('Token Copied to Clipboard!');
+    alert('Copied: ' + t);
 }
 
 function selectApp(token) {
@@ -675,7 +671,7 @@ async function createUser() {
     let token = document.getElementById('tokenDisplay').innerText;
     
     if(!u || !p) {
-        alert('Fill all user fields!');
+        alert('Fill fields!');
         return;
     }
     
@@ -690,7 +686,7 @@ async function createUser() {
 }
 
 async function deleteUser(username) {
-    if(!confirm('Delete user ' + username + '?')) return;
+    if(!confirm('Delete ' + username + '?')) return;
     let res = await fetch('/api/delete_user', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -784,15 +780,15 @@ def dash():
     email = session["user"]["email"]
     is_paid = email in PAID_USERS
     limit_text = "Unlimited" if is_paid else "10"
-    plan_text = "PRO UNLIMITED" if is_paid else "FREE TIER"
+    plan_text = "PRO UNLIMITED" if is_paid else "FREE"
     plan_color = "text-green-400" if is_paid else "text-yellow-400"
     
     apps = db("SELECT * FROM apps WHERE owner_email=?", (email,), True)
     
     if not apps:
-        app_options = "<option>No Applications Found</option>"
-        active_token = "Generate or select an app token"
-        app_list_html = "<div class='text-zinc-500 text-xs py-4 px-4 bg-black/40 rounded-xl border border-white/5'>[!] No applications created yet. Use the generator below.</div>"
+        app_options = "<option>No Apps Created</option>"
+        active_token = "Create an app to get Token"
+        app_list_html = "<p class='text-zinc-500 text-sm'>No apps yet - Create one below</p>"
     else:
         app_options = "".join([
             f"<option value='{a[2]}'>{a[1]}</option>" 
@@ -800,12 +796,12 @@ def dash():
         ])
         active_token = apps[0][2]
         app_list_html = "".join([
-            f"""<div class='bg-black/90 border border-[#00ffcc]/20 rounded-xl px-5 py-4 flex justify-between items-center mb-3 shadow-md'>
+            f"""<div class='bg-black/80 border border-white/10 rounded-xl px-4 py-3 flex justify-between items-center mb-2'>
                 <div>
-                    <span class='font-bold text-white text-sm'>{a[1]}</span><br>
-                    <span class='text-[10px] text-zinc-400 font-mono'>{a[2]}</span>
+                    <span class='font-bold text-white'>{a[1]}</span><br>
+                    <span class='text-xs text-zinc-500 font-mono'>{a[2][:25]}...</span>
                 </div>
-                <button onclick="deleteApp('{a[2]}')" class='bg-red-950/60 border border-red-500/40 px-3.5 py-1.5 rounded-lg text-xs hover:bg-red-900 transition text-red-300 font-bold'>DELETE</button>
+                <button onclick="deleteApp('{a[2]}')" class='bg-red-900/50 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs hover:bg-red-800 transition text-red-300 font-semibold'>Delete App</button>
             </div>"""
             for a in apps
         ])
@@ -814,60 +810,252 @@ def dash():
     
     if keys:
         keys_list_html = "".join([
-            f"<div class='flex justify-between items-center bg-black/90 border border-white/10 rounded-xl px-4 py-3'><span>{k[1]}</span><span class='{'text-[#00ffcc]' if k[3] == 'unused' else 'text-red-400'} font-bold'>● {k[3].upper()}</span></div>"
+            f"<div class='flex justify-between bg-black/80 border border-white/10 rounded-xl px-4 py-3'><span>{k[1]}</span><span class='{'text-green-400' if k[3] == 'unused' else 'text-red-400'}'>● {k[3]}</span></div>"
             for k in keys
         ])
     else:
-        keys_list_html = "<div class='text-zinc-500 text-xs py-4 px-4 bg-black/40 rounded-xl border border-white/5'>[!] No license keys generated yet.</div>"
+        keys_list_html = "<p class='text-center text-zinc-600 text-xs mt-10'>No keys generated yet.</p>"
 
     tool_users = db("SELECT * FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
     tool_user_count = len(tool_users)
     
     if tool_user_count == 0:
-        percent = 5
+        percent = 10
     else:
         max_limit = 999999 if is_paid else 10
         percent = min(int(tool_user_count / max_limit * 100), 100)
     
     tool_users_list_html = ""
-    if not tool_users:
-        tool_users_list_html = "<div class='text-zinc-500 text-xs py-4 px-4 bg-black/40 rounded-xl border border-white/5'>[!] No active users registered under your apps yet.</div>"
-    else:
-        for u in tool_users:
-            hwid_short = (u[5][:18] + "...") if u[5] else "UNBOUND"
-            status_color = "text-green-400" if u[4] == "active" else "text-red-400"
-            ban_text = "BAN" if u[4] == "active" else "UNBAN"
-            
-            tool_users_list_html += f"""
-            <div class='flex justify-between items-center bg-black/90 border border-[#00ffcc]/20 rounded-xl px-5 py-4 mb-3'>
-                <div>
-                    <span class='text-white font-bold text-sm'>{u[1]}</span><span class='text-zinc-500'> / {u[2]}</span><br>
-                    <span class='text-[10px] text-zinc-400'>HWID: <span class='text-[#00ffcc]'>{hwid_short}</span> | STATUS: <span class='{status_color} font-bold'>{u[4].upper()}</span></span>
-                </div>
-                <div class='flex gap-2 flex-wrap justify-end'>
-                    <button onclick="editUser('{u[1]}','{u[2]}')" class='bg-blue-950/60 border border-blue-500/40 px-3 py-1.5 rounded-lg text-[10px] hover:bg-blue-900 transition font-bold'>EDIT</button>
-                    <button onclick="toggleBan('{u[1]}')" class='bg-yellow-950/60 border border-yellow-500/40 px-3 py-1.5 rounded-lg text-[10px] hover:bg-yellow-900 transition font-bold'>{ban_text}</button>
-                    <button onclick="resetHwid('{u[1]}')" class='bg-zinc-900 border border-white/20 px-3 py-1.5 rounded-lg text-[10px] hover:bg-zinc-800 transition font-bold'>RESET HWID</button>
-                    <button onclick="deleteUser('{u[1]}')" class='bg-red-950/60 border border-red-500/40 px-3 py-1.5 rounded-lg text-[10px] hover:bg-red-900 transition font-bold'>DELETE</button>
-                </div>
-            </div>
-            """
+    for u in tool_users:
+        hwid_short = (u[5][:15] + "...") if u[5] else "Not Bound"
+        status_color = "text-green-400" if u[4] == "active" else "text-red-400"
+        ban_text = "Ban" if u[4] == "active" else "Unban"
         
-    return render_template_string(
-        DASHBOARD_HTML,
-        name=session["user"].get("name", "User"),
-        email=email,
-        plan_text=plan_text,
-        plan_color=plan_color,
-        limit_text=limit_text,
-        app_options=app_options,
-        active_token=active_token,
-        app_list_html=app_list_html,
-        keys_list_html=keys_list_html,
-        tool_users_list_html=tool_users_list_html,
-        tool_user_count=tool_user_count,
-        percent=percent
+        tool_users_list_html += f"""
+        <div class='flex justify-between items-center bg-black/80 border border-white/10 rounded-xl px-4 py-3 mb-2'>
+            <div>
+                <span class='text-white font-bold'>{u[1]}</span><span class='text-zinc-500'> / {u[2]}</span><br>
+                <span class='text-[10px] text-zinc-500'>HWID: {hwid_short} | Status: <span class='{status_color}'>{u[4].upper()}</span></span>
+            </div>
+            <div class='flex gap-2 flex-wrap justify-end max-w-[60%]'>
+                <button onclick="editUser('{u[1]}','{u[2]}')" class='bg-blue-900/50 border border-blue-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-blue-800 transition'>Edit</button>
+                <button onclick="toggleBan('{u[1]}')" class='bg-yellow-900/50 border border-yellow-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-yellow-800 transition'>{ban_text}</button>
+                <button onclick="resetHwid('{u[1]}')" class='bg-zinc-800 border border-white/10 px-3 py-1 rounded-lg text-[10px] hover:bg-zinc-700 transition'>Reset HWID</button>
+                <button onclick="deleteUser('{u[1]}')" class='bg-red-900/50 border border-red-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-red-800 transition'>Delete</button>
+            </div>
+        </div>
+        """
+        
+    if not tool_users_list_html:
+        tool_users_list_html = "<p class='text-center text-zinc-600 text-xs mt-10'>No registered users found.</p>"
+
+    html = (
+        DASHBOARD_HTML.replace("{{name}}", session["user"].get("name", "User"))
+        .replace("{{email}}", email)
+        .replace("{{app_options}}", app_options)
+        .replace("{{active_token}}", active_token)
+        .replace("{{app_list_html}}", app_list_html)
+        .replace("{{keys_list_html}}", keys_list_html)
+        .replace("{{tool_user_count}}", str(tool_user_count))
+        .replace("{{limit_text}}", limit_text)
+        .replace("{{plan_text}}", plan_text)
+        .replace("{{plan_color}}", plan_color)
+        .replace("{{percent}}", str(percent))
+        .replace("{{tool_users_list_html}}", tool_users_list_html)
     )
+    return render_template_string(html)
+
+# ==========================================
+# REST API ENDPOINTS
+# ==========================================
+
+def check_limit(email):
+    if email in PAID_USERS:
+        return False
+        
+    tool_users = db("SELECT COUNT(*) FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
+    keys = db("SELECT COUNT(*) FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
+    
+    user_count = tool_users[0][0] if tool_users else 0
+    key_count = keys[0][0] if keys else 0
+    
+    return (user_count + key_count) >= 10
+
+@app.route("/api/create_app", methods=["POST"])
+def api_create_app():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    email = session["user"]["email"]
+    apps = db("SELECT COUNT(*) FROM apps WHERE owner_email=?", (email,), True)
+    
+    # Free Plan limit set to 2 Applications max
+    if email not in PAID_USERS and apps[0][0] >= 2:
+        return jsonify({"error": "Free Plan limit reached. Max 2 applications allowed. Delete an existing app to create a new one."})
+        
+    name = request.json.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "Invalid app name"})
+        
+    random_str = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
+    token = f"HSL_{random_str}"
+    
+    db(
+        "INSERT INTO apps (name, token, owner_email, created_at) VALUES (?,?,?,?)", 
+        (name, token, email, datetime.now().isoformat())
+    )
+    
+    return jsonify({"token": token})
+
+@app.route("/api/delete_app", methods=["POST"])
+def api_delete_app():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    email = session["user"]["email"]
+    token = request.json.get("token")
+    
+    # Verify ownership before deleting
+    app_check = db("SELECT * FROM apps WHERE token=? AND owner_email=?", (token, email), True)
+    if not app_check:
+        return jsonify({"message": "App not found or unauthorized!"})
+        
+    db("DELETE FROM apps WHERE token=?", (token,))
+    db("DELETE FROM tool_users WHERE app_token=?", (token,))
+    
+    return jsonify({"message": "Application deleted successfully."})
+
+@app.route("/api/create_user", methods=["POST"])
+def api_create_user():
+    data = request.json or {}
+    app_token = data.get("app_token")
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+
+    if not username or not password or not app_token:
+        return jsonify({"message": "Missing required fields!"})
+
+    app_data = db("SELECT owner_email FROM apps WHERE token=?", (app_token,), True)
+    if not app_data:
+        return jsonify({"message": "Invalid App Token!"})
+
+    email = app_data[0][0]
+    if check_limit(email):
+        return jsonify({"message": "Plan limit reached!"})
+
+    try:
+        db(
+            "INSERT INTO tool_users (username, password, app_token, status, created_at) VALUES (?,?,?,?,?)",
+            (username, password, app_token, "active", datetime.now().isoformat())
+        )
+        return jsonify({"message": f"User Created: {username}"}), 200
+    except Exception:
+        return jsonify({"message": "Username already exists!"})
+
+@app.route("/api/delete_user", methods=["POST"])
+def api_delete_user():
+    if "user" not in session: 
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    username = request.json.get("username")
+    db("DELETE FROM tool_users WHERE username=?", (username,))
+    return jsonify({"message": "Deleted successfully"})
+
+@app.route("/api/reset_hwid", methods=["POST"])
+def api_reset_hwid():
+    if "user" not in session: 
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    username = request.json.get("username")
+    db("UPDATE tool_users SET hwid=NULL, status='active' WHERE username=?", (username,))
+    return jsonify({"message": f"HWID Reset for {username}"})
+
+@app.route("/api/toggle_ban", methods=["POST"])
+def api_toggle_ban():
+    if "user" not in session: 
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    username = request.json.get("username")
+    res = db("SELECT status FROM tool_users WHERE username=?", (username,), True)
+    
+    if not res: 
+        return jsonify({"message": "User not found"})
+        
+    new_status = "banned" if res[0][0] == "active" else "active"
+    db("UPDATE tool_users SET status=? WHERE username=?", (new_status, username))
+    
+    return jsonify({"message": f"{username} status updated to {new_status.upper()}"})
+
+@app.route("/api/edit_user", methods=["POST"])
+def api_edit_user():
+    if "user" not in session: 
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    old_u = request.json.get("old_username")
+    new_u = request.json.get("new_username") or old_u
+    new_p = request.json.get("new_password")
+    
+    try:
+        db("UPDATE tool_users SET username=?, password=? WHERE username=?", (new_u, new_p, old_u))
+        return jsonify({"message": f"Updated {old_u}"})
+    except Exception:
+        return jsonify({"message": "Update failed."})
+
+@app.route("/api/auth_login", methods=["POST"])
+@rate_limit(max_requests=10, window_seconds=60)
+def api_auth_login():
+    data = request.json or {}
+    
+    username = data.get("username")
+    password = data.get("password")
+    hwid = data.get("hwid")
+    token = data.get("token")
+    client_sig = data.get("sig")
+    
+    if not username or not password or not token or not hwid:
+        return jsonify({
+            "status": "invalid", 
+            "message": "Malformed request parameters"
+        }), 400
+
+    expected_sig = hashlib.sha256(f"{username}:{hwid}:{token}".encode()).hexdigest()
+    if client_sig and client_sig != expected_sig:
+        return jsonify({
+            "status": "tampered", 
+            "message": "Request payload tampered!"
+        }), 403
+
+    res = db("SELECT * FROM tool_users WHERE username=? AND password=? AND app_token=?", (username, password, token), True)
+    if not res:
+        return jsonify({
+            "status": "invalid", 
+            "message": "Incorrect credentials"
+        })
+        
+    user_row = res[0]
+    if user_row[4] == "banned":
+        return jsonify({
+            "status": "banned", 
+            "message": "Account suspended"
+        })
+        
+    if not user_row[5]:
+        db("UPDATE tool_users SET hwid=?, status='active' WHERE username=?", (hwid, username))
+        return jsonify({
+            "status": "valid", 
+            "message": "HWID Bound Successfully"
+        })
+    else:
+        if user_row[5] == hwid:
+            return jsonify({
+                "status": "valid", 
+                "message": "Authentication Success"
+            })
+        else:
+            return jsonify({
+                "status": "hwid_mismatch", 
+                "message": "Hardware mismatch detected"
+            })
 
 @app.route("/logout")
 def logout():
@@ -875,211 +1063,12 @@ def logout():
     return redirect("/")
 
 # ==========================================
-# REST API ENDPOINTS FOR APP & USER MANAGEMENT
+# SERVER RUNNER
 # ==========================================
-
-@app.route("/api/create_app", methods=["POST"])
-def api_create_app():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}}, 401
-        
-    email = session["user"]["email"]
-    is_paid = email in PAID_USERS
-    
-    existing_apps = db("SELECT COUNT(*) FROM apps WHERE owner_email=?", (email,), True)
-    app_count = existing_apps[0][0] if existing_apps else 0
-    
-    if not is_paid and app_count >= 2:
-        return jsonify({"error": "Free plan is limited to 2 applications. Upgrade to Pro."}), 403
-        
-    data = request.get_json() or {}
-    name = data.get("name", "").strip()
-    
-    if not name:
-        return jsonify({"error": "Application name is required"}), 400
-        
-    token = "hsl_" + "".join(random.choices(string.ascii_letters + string.digits, k=32))
-    created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    
-    db("INSERT INTO apps (name, token, owner_email, created_at) VALUES (?, ?, ?, ?)", (name, token, email, created_at))
-    return jsonify({"success": True, "token": token, "message": "Application deployed successfully."})
-
-@app.route("/api/delete_app", methods=["POST"])
-def api_delete_app():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}}, 401
-        
-    email = session["user"]["email"]
-    data = request.get_json() or {}
-    token = data.get("token")
-    
-    app_record = db("SELECT * FROM apps WHERE token=? AND owner_email=?", (token, email), True)
-    if not app_record:
-        return jsonify({"error": "Application not found or unauthorized"}), 404
-        
-    db("DELETE FROM apps WHERE token=?", (token,))
-    db("DELETE FROM tool_users WHERE app_token=?", (token,))
-    db("DELETE FROM keys WHERE app_token=?", (token,))
-    
-    return jsonify({"success": True, "message": "Application and dependent records wiped."})
-
-@app.route("/api/create_user", methods=["POST"])
-def api_create_user():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}}, 401
-        
-    email = session["user"]["email"]
-    is_paid = email in PAID_USERS
-    
-    data = request.get_json() or {}
-    username = data.get("username", "").strip()
-    password = data.get("password", "").strip()
-    app_token = data.get("app_token", "").strip()
-    
-    if not username or not password or not app_token:
-        return jsonify({"status": "error", "message": "All fields are required."}), 400
-        
-    app_check = db("SELECT * FROM apps WHERE token=? AND owner_email=?", (app_token, email), True)
-    if not app_check:
-        return jsonify({"status": "error", "message": "Invalid application token."}), 403
-        
-    if not is_paid:
-        users_count = db("SELECT COUNT(*) FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
-        total_users = users_count[0][0] if users_count else 0
-        if total_users >= 10:
-            return jsonify({"status": "error", "message": "Free plan user limit (10) reached. Upgrade to Pro."}), 403
-            
-    existing = db("SELECT * FROM tool_users WHERE username=?", (username,), True)
-    if existing:
-        return jsonify({"status": "error", "message": "Username already taken."}), 400
-        
-    created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    db("INSERT INTO tool_users (username, password, app_token, status, hwid, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-       (username, password, app_token, "active", "", created_at))
-       
-    return jsonify({"status": "success", "message": f"User '{username}' registered successfully."})
-
-@app.route("/api/delete_user", methods=["POST"])
-def api_delete_user():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}}, 401
-        
-    email = session["user"]["email"]
-    data = request.get_json() or {}
-    username = data.get("username")
-    
-    user_record = db("SELECT * FROM tool_users WHERE username=? AND app_token IN (SELECT token FROM apps WHERE owner_email=?)", (username, email), True)
-    if not user_record:
-        return jsonify({"message": "User not found or unauthorized."}), 404
-        
-    db("DELETE FROM tool_users WHERE username=?", (username,))
-    return jsonify({"message": f"User '{username}' terminated successfully."})
-
-@app.route("/api/reset_hwid", methods=["POST"])
-def api_reset_hwid():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}}, 401
-        
-    email = session["user"]["email"]
-    data = request.get_json() or {}
-    username = data.get("username")
-    
-    user_record = db("SELECT * FROM tool_users WHERE username=? AND app_token IN (SELECT token FROM apps WHERE owner_email=?)", (username, email), True)
-    if not user_record:
-        return jsonify({"message": "User not found or unauthorized."}), 404
-        
-    db("UPDATE tool_users SET hwid='' WHERE username=?", (username,))
-    return jsonify({"message": f"HWID unbound successfully for '{username}'."})
-
-@app.route("/api/toggle_ban", methods=["POST"])
-def api_toggle_ban():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}}, 401
-        
-    email = session["user"]["email"]
-    data = request.get_json() or {}
-    username = data.get("username")
-    
-    user_record = db("SELECT * FROM tool_users WHERE username=? AND app_token IN (SELECT token FROM apps WHERE owner_email=?)", (username, email), True)
-    if not user_record:
-        return jsonify({"message": "User not found or unauthorized."}), 404
-        
-    current_status = user_record[0][4]
-    new_status = "banned" if current_status == "active" else "active"
-    
-    db("UPDATE tool_users SET status=? WHERE username=?", (new_status, username))
-    return jsonify({"message": f"User status updated to '{new_status}' for '{username}'."})
-
-@app.route("/api/edit_user", methods=["POST"])
-def api_edit_user():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}}, 401
-        
-    email = session["user"]["email"]
-    data = request.get_json() or {}
-    old_username = data.get("old_username")
-    new_username = data.get("new_username", "").strip()
-    new_password = data.get("new_password", "").strip()
-    
-    if not new_username or not new_password:
-        return jsonify({"message": "Fields cannot be blank."}), 400
-        
-    user_record = db("SELECT * FROM tool_users WHERE username=? AND app_token IN (SELECT token FROM apps WHERE owner_email=?)", (old_username, email), True)
-    if not user_record:
-        return jsonify({"message": "User not found or unauthorized."}), 404
-        
-    db("UPDATE tool_users SET username=?, password=? WHERE username=?", (new_username, new_password, old_username))
-    return jsonify({"message": "User credentials modified successfully."})
-
-# ==========================================
-# PUBLIC CLIENT AUTHENTICATION ENDPOINT
-# ==========================================
-
-@app.route("/api/auth_login", methods=["POST"])
-@rate_limit(max_requests=20, window_seconds=60)
-def api_auth_login():
-    data = request.get_json() or {}
-    username = data.get("username", "").strip()
-    password = data.get("password", "").strip()
-    hwid = data.get("hwid", "").strip()
-    token = data.get("token", "").strip()
-    client_sig = data.get("sig", "").strip()
-    
-    if not username or not password or not hwid or not token or not client_sig:
-        return jsonify({"status": "error", "message": "Incomplete payload or signature missing."}), 400
-        
-    raw_sig = f"{username}:{hwid}:{token}"
-    expected_sig = hashlib.sha256(raw_sig.encode()).hexdigest()
-    
-    if client_sig != expected_sig:
-        return jsonify({"status": "error", "message": "Signature verification failed. Anti-crack triggered."}), 403
-        
-    app_record = db("SELECT * FROM apps WHERE token=?", (token,), True)
-    if not app_record:
-        return jsonify({"status": "error", "message": "Invalid application token."}), 403
-        
-    user_record = db("SELECT * FROM tool_users WHERE username=? AND app_token=?", (username, token), True)
-    if not user_record:
-        return jsonify({"status": "error", "message": "Invalid username or password."}), 401
-        
-    db_id, db_user, db_pass, db_token, db_status, db_hwid, db_created = user_record[0]
-    
-    if db_pass != password:
-        return jsonify({"status": "error", "message": "Invalid username or password."}), 401
-        
-    if db_status == "banned":
-        return jsonify({"status": "error", "message": "Access denied. Account is banned."}), 403
-        
-    if not db_hwid:
-        db("UPDATE tool_users SET hwid=? WHERE username=?", (hwid, username))
-    elif db_hwid != hwid:
-        return jsonify({"status": "error", "message": "HWID mismatch. License locked to another machine."}), 403
-        
-    return jsonify({
-        "status": "success",
-        "message": "Authentication granted.",
-        "session_token": hashlib.sha256((username + str(time.time())).encode()).hexdigest()
-    })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=5000, 
+        debug=False
+    )
