@@ -17,7 +17,7 @@ oauth = OAuth(app)
 google = oauth.register(name='google', server_metadata_url='https://accounts.google.com/.well-known/openid-configuration', client_id=GOOGLE_CLIENT_ID, client_secret=GOOGLE_CLIENT_SECRET, client_kwargs={'scope': 'openid email profile'})
 
 def init_db():
-    con = sqlite3.connect('hsl.db')
+    con = sqlite3.connect("hsl.db")
     cur = con.cursor()
     cur.execute('''CREATE TABLE IF NOT EXISTS apps (id INTEGER PRIMARY KEY, name TEXT, token TEXT UNIQUE, owner_email TEXT, created_at TEXT)''')
     cur.execute('''CREATE TABLE IF NOT EXISTS keys (id INTEGER PRIMARY KEY, key_text TEXT UNIQUE, app_token TEXT, status TEXT, hwid TEXT, used_by TEXT, created_at TEXT)''')
