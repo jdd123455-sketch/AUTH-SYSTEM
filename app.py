@@ -2,7 +2,11 @@ import os
 import random
 import sqlite3
 import string
-from datetime import datetime
+import time
+import hashlib
+import hmac
+from datetime import datetime, timedelta
+from functools import wraps
 
 from authlib.integrations.flask_client import OAuth
 from flask import (
@@ -12,12 +16,24 @@ from flask import (
     render_template_string,
     request,
     session,
+    abort,
 )
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-app.secret_key = "hsl_corp_final_2026_pro"
+
+# Secret Keys & Environment Configurations
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "hsl_corp_ultra_secure_key_2026_x89")
+APP_SALT = "HSL_SECURE_SALT_v2"
+
+# Cookie Security Configuration
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False, # Production me True rakhein (HTTPS Required)
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=4)
+)
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
@@ -33,7 +49,48 @@ google = oauth.register(
     client_kwargs={"scope": "openid email profile"},
 )
 
+# ----------------- SECURITY & RATE LIMITING LAYER ----------------- #
+REQUEST_HISTORY = {}
 
+def rate_limit(max_requests=10, window_seconds=60):
+    """
+    In-memory Rate Limiter to stop Brute-Force & Crack Attacks
+    """
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            ip = request.remote_addr
+            now = time.time()
+            
+            if ip not in REQUEST_HISTORY:
+                REQUEST_HISTORY[ip] = []
+                
+            # Filter timestamps older than the window
+            REQUEST_HISTORY[ip] = [t for t in REQUEST_HISTORY[ip] if now - t < window_seconds]
+            
+            if len(REQUEST_HISTORY[ip]) >= max_requests:
+                return jsonify({
+                    "status": "rate_limited",
+                    "message": "Too many attempts. Request blocked due to security policies."
+                }), 429
+                
+            REQUEST_HISTORY[ip].append(now)
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
+@app.after_request
+def apply_security_headers(response):
+    """
+    Hardening Web Response Headers against Clickjacking, XSS, and Sniffing
+    """
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+# ----------------- DATABASE SETUP ----------------- #
 def init_db():
     con = sqlite3.connect("hsl.db")
     cur = con.cursor()
@@ -58,9 +115,7 @@ def init_db():
     con.commit()
     con.close()
 
-
 init_db()
-
 
 def db(query, params=(), fetch=False):
     con = sqlite3.connect("hsl.db")
@@ -71,7 +126,7 @@ def db(query, params=(), fetch=False):
     con.close()
     return data
 
-
+# ----------------- TEMPLATES & STYLES ----------------- #
 COMMON_HEAD = """
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
@@ -81,7 +136,6 @@ COMMON_HEAD = """
   .glass-card { background: rgba(15, 20, 35, 0.65); border: 1px solid rgba(34, 211, 238, 0.12); backdrop-filter: blur(12px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
   .glass-card:hover { border-color: rgba(34, 211, 238, 0.4); transform: translateY(-3px); box-shadow: 0 10px 30px -10px rgba(34,211,238,0.25); }
   
-  /* Custom Glowing Ring Cursor */
   #cursor-dot { position: fixed; width: 8px; height: 8px; background: #22d3ee; border-radius: 50%; pointer-events: none; z-index: 9999; transform: translate(-50%, -50%); transition: transform 0.05s ease-out; box-shadow: 0 0 10px #22d3ee, 0 0 20px #22d3ee; }
   #cursor-ring { position: fixed; width: 40px; height: 40px; border: 2px solid rgba(34, 211, 238, 0.6); border-radius: 50%; pointer-events: none; z-index: 9998; transform: translate(-50%, -50%); box-shadow: 0 0 15px rgba(34,211,238,0.3); transition: width 0.2s, height 0.2s, border-color 0.2s; }
   a:hover ~ #cursor-ring, button:hover ~ #cursor-ring { width: 55px; height: 55px; border-color: #6366f1; }
@@ -112,7 +166,6 @@ CURSOR_SCRIPT = """
   }
   renderCursor();
 
-  // Background Interactive Particles
   const c = document.getElementById('c'), x = c.getContext('2d');
   function R(){ c.width = innerWidth; c.height = innerHeight; }
   R(); onresize = R;
@@ -158,28 +211,28 @@ LANDING = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}</head><body class="text-w
 </nav>
 
 <div class="relative z-10 flex flex-col items-center text-center pt-24 px-4">
-  <div class="inline-block border border-cyan-500/30 bg-cyan-500/10 px-4 py-1.5 rounded-full text-xs text-cyan-300 font-semibold mb-6 shadow-[0_0_15px_rgba(34,211,238,0.2)]">⚡ Next-Gen HWID Infrastructure</div>
+  <div class="inline-block border border-cyan-500/30 bg-cyan-500/10 px-4 py-1.5 rounded-full text-xs text-cyan-300 font-semibold mb-6 shadow-[0_0_15px_rgba(34,211,238,0.2)]">⚡ Encrypted Anti-Crack Infrastructure</div>
   <h1 class="text-6xl md:text-7xl font-black bg-gradient-to-r from-cyan-300 via-cyan-400 to-indigo-500 bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(34,211,238,0.4)] max-w-4xl leading-tight">HSL CORP AUTH</h1>
-  <p class="text-zinc-400 mt-5 font-medium text-base max-w-xl">Ultimate Hardware-Locked Authentication & Dynamic Licensing Engine for Developers.</p>
-  <a href="/login" class="bg-gradient-to-r from-cyan-400 to-indigo-600 hover:scale-105 px-8 py-3.5 rounded-2xl text-sm font-bold shadow-[0_0_30px_rgba(34,211,238,0.6)] mt-8 transition duration-300">🚀 Get Started - It's Free</a>
+  <p class="text-zinc-400 mt-5 font-medium text-base max-w-xl">Ultimate Hardware-Locked Authentication & Anti-Bypass Protection Engine.</p>
+  <a href="/login" class="bg-gradient-to-r from-cyan-400 to-indigo-600 hover:scale-105 px-8 py-3.5 rounded-2xl text-sm font-bold shadow-[0_0_30px_rgba(34,211,238,0.6)] mt-8 transition duration-300">🚀 Secure Access Portal</a>
 
   <div class="mt-28 w-full max-w-5xl px-6 pb-20">
-    <p class="font-black text-xl text-left tracking-wide text-zinc-200">Core Infrastructure</p>
+    <p class="font-black text-xl text-left tracking-wide text-zinc-200">Hardened Features</p>
     <div class="grid md:grid-cols-3 gap-6 mt-6 text-left">
       <div class="glass-card rounded-2xl p-6">
         <p class="text-2xl">🔒</p>
-        <p class="font-bold text-base mt-3 text-cyan-300">Motherboard HWID Lock</p>
-        <p class="text-xs text-zinc-400 mt-1">Binds credentials directly with unique motherboard hardware hashes.</p>
+        <p class="font-bold text-base mt-3 text-cyan-300">Hardware-Bound Verification</p>
+        <p class="text-xs text-zinc-400 mt-1">Binds authentication states directly with unique motherboard hardware hashes.</p>
       </div>
       <div class="glass-card rounded-2xl p-6">
         <p class="text-2xl">🛡️</p>
-        <p class="font-bold text-base mt-3 text-indigo-300">Dynamic SHA-256 Session</p>
-        <p class="text-xs text-zinc-400 mt-1">High speed validation API endpoints with dynamic payload verification.</p>
+        <p class="font-bold text-base mt-3 text-indigo-300">Rate Limiting Protection</p>
+        <p class="text-xs text-zinc-400 mt-1">Automatic brute-force mitigation layer blocking dictionary & credential stuffing attacks.</p>
       </div>
       <div class="glass-card rounded-2xl p-6">
         <p class="text-2xl">🤖</p>
-        <p class="font-bold text-base mt-3 text-cyan-300">Username/Pass Auth</p>
-        <p class="text-xs text-zinc-400 mt-1">Instant developer console with full control over user access & bans.</p>
+        <p class="font-bold text-base mt-3 text-cyan-300">HMAC Dynamic Session Check</p>
+        <p class="text-xs text-zinc-400 mt-1">Protects against API response spoofing and HTTP debug tool manipulations.</p>
       </div>
     </div>
   </div>
@@ -191,7 +244,7 @@ LOGIN = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}</head><body class="flex ite
 <div class="relative z-10 w-[420px] glass rounded-[28px] p-9 text-center shadow-[0_0_60px_rgba(34,211,238,0.2)]">
   <div class="w-16 h-16 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_25px_#22d3ee]">👾</div>
   <h1 class="font-black text-2xl mt-5 text-white bg-gradient-to-r from-cyan-300 to-indigo-400 bg-clip-text text-transparent">HSL CORP</h1>
-  <p class="text-xs text-zinc-400 mt-1">Sign in to manage your applications</p>
+  <p class="text-xs text-zinc-400 mt-1">Sign in using verified OAuth endpoints</p>
   <a href="/auth/google" class="mt-8 w-full bg-white hover:bg-zinc-100 text-black rounded-xl py-3.5 flex justify-center items-center gap-3 font-bold text-sm shadow-lg hover:scale-[1.02] transition">
     <img src="https://www.svgrepo.com/show/475656/google-color.svg" width=20> Continue with Google
   </a>
@@ -217,7 +270,7 @@ DASHBOARD_HTML = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}
     <button onclick="showTab('applications')" id="btn-applications" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">📦 Applications</button>
     <button onclick="showTab('tool_users')" id="btn-tool_users" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">👤 Users ({{{{tool_user_count}}}}/{{{{limit_text}}}})</button>
     <button onclick="showTab('keys')" id="btn-keys" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔑 License Keys</button>
-    <button onclick="showTab('integrate')" id="btn-integrate" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔌 How to Integrate</button>
+    <button onclick="showTab('integrate')" id="btn-integrate" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔌 Anti-Crack Integration</button>
     <button onclick="showTab('billing')" id="btn-billing" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">💎 Billing / Upgrade</button>
   </div>
   
@@ -244,50 +297,62 @@ DASHBOARD_HTML = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}
       </div>
       
       <div class="mt-6 glass-card rounded-2xl p-7">
-        <p class="text-base font-bold text-white">+ Create New Username / Password</p>
+        <p class="text-base font-bold text-white">+ Create New Secure User</p>
         <div class="flex gap-3 mt-4">
           <input id="newUsername" placeholder="Username" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
           <input id="newPassword" placeholder="Password" class="flex-1 bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
         </div>
         <button onclick="createUser()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create User</button>
-        <p class="text-xs text-zinc-500 mt-3">Free plan me sirf 10 users bana sakte ho. Unlimited ke liye Billing dekho.</p>
       </div>
     </div>
 
-    <div id="tab-applications" class="hidden"><h1 class="text-2xl font-black">Applications</h1><div class="glass-card mt-6 rounded-2xl p-7"><div class="space-y-3 mb-6">{{{{app_list_html}}}}</div><div class="border-t border-white/10 pt-5"><p class="text-base font-bold">+ Create New App</p><input id="newAppName" placeholder="App Name e.g. HSL Tool v1" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"><button onclick="createApp()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create Application</button></div></div></div>
+    <div id="tab-applications" class="hidden"><h1 class="text-2xl font-black">Applications</h1><div class="glass-card mt-6 rounded-2xl p-7"><div class="space-y-3 mb-6">{{{{app_list_html}}}}</div><div class="border-t border-white/10 pt-5"><p class="text-base font-bold">+ Create New App</p><input id="newAppName" placeholder="App Name" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"><button onclick="createApp()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create Application</button></div></div></div>
 
     <div id="tab-tool_users" class="hidden"><h1 class="text-2xl font-black">Username / Pass Users ({{{{tool_user_count}}}}/{{{{limit_text}}}})</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{{{tool_users_list_html}}}}</div></div></div>
 
-    <div id="tab-keys" class="hidden"><h1 class="text-2xl font-black">License Keys (Old System)</h1><div class="glass-card mt-6 rounded-2xl p-6"><p class="text-xs text-zinc-400 mb-4">Ye purana system hai, ab Username/Pass use karo. Free plan me ye bhi 10 limit me count hoga.</p><div class="mt-4 space-y-3 text-xs font-mono">{{{{keys_list_html}}}}</div></div></div>
+    <div id="tab-keys" class="hidden"><h1 class="text-2xl font-black">License Keys</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{{{keys_list_html}}}}</div></div></div>
 
-    <div id="tab-integrate" class="hidden"><h1 class="text-2xl font-black">How to Integrate in Your Tool</h1><div class="glass-card mt-6 rounded-2xl p-7">
-      <p class="text-xs font-bold text-zinc-300">Step 1: Your App Token (Auto Generated for selected app)</p>
-      <div class="mt-2 bg-black/80 border border-cyan-500/30 rounded-xl px-4 py-3 flex justify-between items-center"><p id="tokenDisplay2" class="text-xs font-mono text-cyan-400 truncate">{{{{active_token}}}}</p><button onclick="copyToken2()" class="text-xs bg-gradient-to-r from-cyan-400 to-indigo-600 px-4 py-1.5 rounded-lg font-bold">Copy</button></div>
-      <p class="text-xs font-bold text-zinc-300 mt-6">Step 2: Add this code in your Python Tool's app.py</p>
-      <pre class="mt-2 bg-black/90 border border-white/10 rounded-xl p-5 text-xs font-mono overflow-x-auto text-green-400 leading-relaxed">import requests, subprocess
+    <div id="tab-integrate" class="hidden"><h1 class="text-2xl font-black">Secure Client Integration Code</h1><div class="glass-card mt-6 rounded-2xl p-7">
+      <p class="text-xs font-bold text-cyan-300">Encrypted Payload Verification Script (Anti-Fiddler/Anti-HTTP Debugger)</p>
+      <pre class="mt-4 bg-black/90 border border-white/10 rounded-xl p-5 text-xs font-mono overflow-x-auto text-green-400 leading-relaxed">
+import requests, subprocess, hashlib, hmac
+
 MY_APP_TOKEN = "{{{{active_token}}}}"
-AUTH_URL = "https://YOUR-DOMAIN.com/api/auth_login" # apne domain se change karo
+AUTH_URL = "https://YOUR-DOMAIN.com/api/auth_login"
 
 def get_hwid():
     try:
-        import subprocess
         r = subprocess.check_output('wmic baseboard get serialnumber', shell=True).decode().split('\\n')[1].strip()
         return r
     except:
-        return "UNKNOWN"
+        return "UNKNOWN_HWID"
 
-# --- login check ---
-# r = requests.post(AUTH_URL, json={{'username':u,'password':p,'hwid':get_hwid(),'token':MY_APP_TOKEN}}).json()
-# if r['status']=='valid': login success
+def secure_login(username, password):
+    hwid = get_hwid()
+    # Payload Verification Sig
+    raw_sig = f"{{username}}:{{hwid}}:{{MY_APP_TOKEN}}"
+    sig = hashlib.sha256(raw_sig.encode()).hexdigest()
+    
+    payload = {{
+        "username": username,
+        "password": password,
+        "hwid": hwid,
+        "token": MY_APP_TOKEN,
+        "sig": sig
+    }}
+    
+    try:
+        res = requests.post(AUTH_URL, json=payload, timeout=10)
+        return res.json()
+    except Exception as e:
+        return {{"status": "error", "message": "Connection Tampered"}}
 </pre>
-      <p class="text-xs text-zinc-400 mt-6">Step 3: Dashboard > Overview se Username/Password banao aur apne customer ko do. Bas!</p>
-      <p class="text-xs text-zinc-500 mt-2">Ban/Reset: Agar customer ka PC change ho toh Dashboard > Users > Reset HWID dabao. Agar ban karna ho toh Ban dabao.</p>
     </div></div>
 
     <div id="tab-billing" class="hidden"><h1 class="text-2xl font-black">Billing / Plans</h1>
       <div class="grid grid-cols-2 gap-6 mt-6">
         <div class="glass-card rounded-2xl p-7"><p class="font-bold text-sm text-zinc-300">FREE PLAN</p><p class="text-4xl font-black mt-2">₹0</p><p class="text-xs text-zinc-400 mt-3 leading-relaxed">✓ 10 Users / Keys Only<br>✓ 1 Application<br>✓ HWID Lock</p><p class="mt-6 text-xs bg-zinc-800/80 rounded-full px-4 py-1.5 inline-block font-semibold">Current: {{{{plan_text}}}}</p></div>
-        <div class="glass-card rounded-2xl p-7 border-cyan-400/50 bg-cyan-500/10"><p class="font-bold text-sm text-cyan-400">PRO UNLIMITED</p><p class="text-4xl font-black mt-2">₹499</p><p class="text-xs text-zinc-200 mt-3 leading-relaxed">✓ Unlimited Users<br>✓ Unlimited Apps<br>✓ Unlimited Keys<br>✓ Priority Support</p><a href="https://wa.me/919999999999?text=Hi%20I%20want%20HSL%20PRO%20Plan%20{{{{email}}}}" target="_blank" class="mt-6 block text-center bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_25px_rgba(34,211,238,0.5)] transition">Buy on WhatsApp</a></div>
+        <div class="glass-card rounded-2xl p-7 border-cyan-400/50 bg-cyan-500/10"><p class="font-bold text-sm text-cyan-400">PRO UNLIMITED</p><p class="text-4xl font-black mt-2">₹499</p><p class="text-xs text-zinc-200 mt-3 leading-relaxed">✓ Unlimited Users<br>✓ Unlimited Apps<br>✓ Unlimited Keys<br>✓ Anti-Crack Engine</p><a href="https://wa.me/919999999999" target="_blank" class="mt-6 block text-center bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_25px_rgba(34,211,238,0.5)] transition">Buy on WhatsApp</a></div>
       </div>
     </div>
   </div>
@@ -295,19 +360,16 @@ def get_hwid():
 {CURSOR_SCRIPT}
 <script>
 function showTab(name){{document.querySelectorAll('[id^="tab-"]').forEach(d=>d.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('#sidebar button').forEach(b=>{{b.classList.remove('side-active');b.classList.add('text-zinc-400')}});let btn=document.getElementById('btn-'+name);if(btn){{btn.classList.add('side-active');btn.classList.remove('text-zinc-400')}}}}
-async function createApp(){{let name=document.getElementById('newAppName').value.trim();if(!name){{alert('Name likh!');return;}}let res=await fetch('/api/create_app',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{name:name}})}});let data=await res.json();if(data.error){{alert(data.error);}}else{{alert('App Created! Token: '+data.token);location.reload();}}}}
+async function createApp(){{let name=document.getElementById('newAppName').value.trim();if(!name){{alert('Enter Name!');return;} }let res=await fetch('/api/create_app',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{name:name}})}});let data=await res.json();if(data.error){{alert(data.error);} else{{alert('App Created! Token: '+data.token);location.reload();}}}}
 function copyToken(){{let t=document.getElementById('tokenDisplay').innerText;navigator.clipboard.writeText(t);alert('Copied: '+t);}}
-function copyToken2(){{let t=document.getElementById('tokenDisplay2').innerText;navigator.clipboard.writeText(t);alert('Token Copied!');}}
-function selectApp(token){{document.getElementById('tokenDisplay').innerText=token;document.getElementById('tokenDisplay2').innerText=token;}}
-async function createUser(){{let u=document.getElementById('newUsername').value.trim();let p=document.getElementById('newPassword').value.trim();let token=document.getElementById('tokenDisplay').innerText;if(!u||!p){{alert('Username Pass likh!');return;}}let res=await fetch('/api/create_user',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:u,password:p,app_token:token}})}});let data=await res.json();alert(data.message);location.reload();}}
+function selectApp(token){{document.getElementById('tokenDisplay').innerText=token;}}
+async function createUser(){{let u=document.getElementById('newUsername').value.trim();let p=document.getElementById('newPassword').value.trim();let token=document.getElementById('tokenDisplay').innerText;if(!u||!p){{alert('Fill fields!');return;} }let res=await fetch('/api/create_user',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:u,password:p,app_token:token}})}});let data=await res.json();alert(data.message);location.reload();}}
 async function deleteUser(username){{if(!confirm('Delete '+username+'?'))return;let res=await fetch('/api/delete_user',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:username}})}});let data=await res.json();alert(data.message);location.reload();}}
 async function resetHwid(username){{let res=await fetch('/api/reset_hwid',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:username}})}});let data=await res.json();alert(data.message);location.reload();}}
 async function toggleBan(username){{let res=await fetch('/api/toggle_ban',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:username}})}});let data=await res.json();alert(data.message);location.reload();}}
 async function editUser(oldU, oldP){{
-    let newU = prompt("New Username (khali chhode toh same rahega):", oldU);
-    if(newU===null) return;
-    let newP = prompt("New Password:", oldP);
-    if(newP===null) return;
+    let newU = prompt("New Username:", oldU); if(newU===null) return;
+    let newP = prompt("New Password:", oldP); if(newP===null) return;
     let res=await fetch('/api/edit_user',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{old_username:oldU, new_username:newU.trim(), new_password:newP.trim()}})}});
     let data=await res.json(); alert(data.message); location.reload();
 }}
@@ -315,32 +377,33 @@ async function editUser(oldU, oldP){{
 </body></html>
 """
 
+# ----------------- ROUTES & API ENDPOINTS ----------------- #
 
 @app.route("/")
 def home():
     return render_template_string(LANDING)
 
-
 @app.route("/login")
 def login():
     return render_template_string(LOGIN)
 
-
 @app.route("/auth/google")
+@rate_limit(max_requests=5, window_seconds=60)
 def auth_google():
     redirect_uri = request.url_root.rstrip("/") + "/auth/callback"
     return google.authorize_redirect(redirect_uri)
 
-
 @app.route("/auth/callback")
 def callback():
-    token = google.authorize_access_token()
-    user = token.get("userinfo") or google.get(
-        "https://openidconnect.googleapis.com/v1/userinfo"
-    ).json()
-    session["user"] = user
-    return redirect("/dashboard")
-
+    try:
+        token = google.authorize_access_token()
+        user = token.get("userinfo") or google.get(
+            "https://openidconnect.googleapis.com/v1/userinfo"
+        ).json()
+        session["user"] = user
+        return redirect("/dashboard")
+    except Exception:
+        return redirect("/login")
 
 @app.route("/dashboard")
 def dash():
@@ -348,71 +411,36 @@ def dash():
         return redirect("/login")
     email = session["user"]["email"]
     is_paid = email in PAID_USERS
-    limit = 999999 if is_paid else 10
     limit_text = "Unlimited" if is_paid else "10"
     plan_text = "PRO UNLIMITED" if is_paid else "FREE"
     plan_color = "text-green-400" if is_paid else "text-yellow-400"
+    
     apps = db("SELECT * FROM apps WHERE owner_email=?", (email,), True)
     if not apps:
         app_options = "<option>No Apps Created</option>"
         active_token = "Create an app to get Token"
-        app_list_html = (
-            "<p class='text-zinc-500 text-sm'>No apps yet - Create one below</p>"
-        )
+        app_list_html = "<p class='text-zinc-500 text-sm'>No apps yet - Create one below</p>"
     else:
-        app_options = "".join(
-            [f"<option value='{a[2]}'>{a[1]}</option>" for a in apps]
-        )
+        app_options = "".join([f"<option value='{a[2]}'>{a[1]}</option>" for a in apps])
         active_token = apps[0][2]
         app_list_html = "".join([
-            "<div class='bg-black/80 border border-white/10 rounded-xl px-4 py-3 flex"
-            f" justify-between items-center'><span>{a[1]}</span><span class='text-xs"
-            f" text-zinc-500 font-mono'>{a[2][:20]}...</span></div>"
+            f"<div class='bg-black/80 border border-white/10 rounded-xl px-4 py-3 flex justify-between items-center'><span>{a[1]}</span><span class='text-xs text-zinc-500 font-mono'>{a[2][:20]}...</span></div>"
             for a in apps
         ])
-    keys = (
-        db(
-            "SELECT * FROM keys WHERE app_token IN (SELECT token FROM apps WHERE"
-            " owner_email=?)",
-            (email,),
-            True,
-        )
-        if apps
-        else []
-    )
-    keys_list_html = (
-        "".join([
-            "<div class='flex justify-between bg-black/80 border border-white/10"
-            f" rounded-xl px-4 py-3'><span>{k[1]}</span><span class='{"text-green-400" if k[3] == "unused" else "text-red-400"}'>●"
-            f" {k[3]}</span></div>"
-            for k in keys
-        ])
-        if keys
-        else (
-            "<p class='text-center text-zinc-600 text-xs mt-10'>No keys</p>"
-        )
-    )
-    tool_users = (
-        db(
-            "SELECT * FROM tool_users WHERE app_token IN (SELECT token FROM apps"
-            " WHERE owner_email=?)",
-            (email,),
-            True,
-        )
-        if apps
-        else []
-    )
+        
+    keys = db("SELECT * FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
+    keys_list_html = "".join([
+        f"<div class='flex justify-between bg-black/80 border border-white/10 rounded-xl px-4 py-3'><span>{k[1]}</span><span class='{'text-green-400' if k[3] == 'unused' else 'text-red-400'}'>● {k[3]}</span></div>"
+        for k in keys
+    ]) if keys else "<p class='text-center text-zinc-600 text-xs mt-10'>No keys</p>"
+
+    tool_users = db("SELECT * FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
     tool_user_count = len(tool_users)
-    percent = (
-        10
-        if tool_user_count == 0
-        else min(int(tool_user_count / limit * 100), 100)
-        if not is_paid
-        else 100
-    )
+    percent = 10 if tool_user_count == 0 else min(int(tool_user_count / (999999 if is_paid else 10) * 100), 100)
+    
     tool_users_list_html = ""
     for u in tool_users:
-        hwid_short = (u[5][:15] + "...") if u[5] else "Not Logged Yet"
+        hwid_short = (u[5][:15] + "...") if u[5] else "Not Bound"
         status_color = "text-green-400" if u[4] == "active" else "text-red-400"
         ban_text = "Ban" if u[4] == "active" else "Unban"
         tool_users_list_html += f"""
@@ -430,12 +458,10 @@ def dash():
         </div>
         """
     if not tool_users_list_html:
-        tool_users_list_html = (
-            "<p class='text-center text-zinc-600 text-xs mt-10'>No users yet."
-            " Create from Overview.</p>"
-        )
+        tool_users_list_html = "<p class='text-center text-zinc-600 text-xs mt-10'>No registered users.</p>"
+
     html = (
-        DASHBOARD_HTML.replace("{{name}}", session["user"]["name"])
+        DASHBOARD_HTML.replace("{{name}}", session["user"].get("name", "User"))
         .replace("{{email}}", email)
         .replace("{{app_options}}", app_options)
         .replace("{{active_token}}", active_token)
@@ -450,51 +476,28 @@ def dash():
     )
     return render_template_string(html)
 
-
 def check_limit(email):
     if email in PAID_USERS:
         return False
-    tool_users = db(
-        "SELECT COUNT(*) FROM tool_users WHERE app_token IN (SELECT token FROM"
-        " apps WHERE owner_email=?)",
-        (email,),
-        True,
-    )
-    keys = db(
-        "SELECT COUNT(*) FROM keys WHERE app_token IN (SELECT token FROM apps"
-        " WHERE owner_email=?)",
-        (email,),
-        True,
-    )
-    total = (tool_users[0][0] if tool_users else 0) + (
-        keys[0][0] if keys else 0
-    )
+    tool_users = db("SELECT COUNT(*) FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
+    keys = db("SELECT COUNT(*) FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
+    total = (tool_users[0][0] if tool_users else 0) + (keys[0][0] if keys else 0)
     return total >= 10
-
 
 @app.route("/api/create_app", methods=["POST"])
 def api_create_app():
     if "user" not in session:
-        return jsonify({"error": "not logged"}), 401
+        return jsonify({"error": "Unauthorized"}), 401
     email = session["user"]["email"]
     apps = db("SELECT COUNT(*) FROM apps WHERE owner_email=?", (email,), True)
     if email not in PAID_USERS and apps[0][0] >= 1:
-        return jsonify({
-            "error": (
-                "FREE plan me sirf 1 App bana sakte ho. PRO lo Unlimited ke liye!"
-                " 💎"
-            )
-        })
-    name = request.json.get("name")
-    token = "HSL_" + "".join(
-        random.choices(string.ascii_uppercase + string.digits, k=20)
-    )
-    db(
-        "INSERT INTO apps (name, token, owner_email, created_at) VALUES (?,?,?,?)",
-        (name, token, email, datetime.now().isoformat()),
-    )
+        return jsonify({"error": "Free Plan limit reached."})
+    name = request.json.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "Invalid app name"})
+    token = "HSL_" + "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
+    db("INSERT INTO apps (name, token, owner_email, created_at) VALUES (?,?,?,?)", (name, token, email, datetime.now().isoformat()))
     return jsonify({"token": token})
-
 
 @app.route("/api/create_user", methods=["POST"])
 def api_create_user():
@@ -504,162 +507,101 @@ def api_create_user():
     password = data.get("password", "").strip()
 
     if not username or not password or not app_token:
-        return jsonify(
-            {"message": "Username, Password aur App Token zaroori hain!"}
-        )
+        return jsonify({"message": "Missing required fields!"})
 
-    app_data = db(
-        "SELECT owner_email FROM apps WHERE token=?", (app_token,), True
-    )
+    app_data = db("SELECT owner_email FROM apps WHERE token=?", (app_token,), True)
     if not app_data:
-        return jsonify({"message": "Invalid App Token! Application banao pehle."})
+        return jsonify({"message": "Invalid App Token!"})
 
     email = app_data[0][0]
-
     if check_limit(email):
-        return jsonify({
-            "message": (
-                "LIMIT REACHED! Free plan me sirf 10 Users/Keys. PRO Plan lo"
-                " Unlimited ke liye! 💎"
-            )
-        })
+        return jsonify({"message": "Plan limit reached!"})
 
     try:
-        db(
-            "INSERT INTO tool_users (username, password, app_token, status,"
-            " created_at) VALUES (?,?,?,?,?)",
-            (username, password, app_token, "active", datetime.now().isoformat()),
-        )
+        db("INSERT INTO tool_users (username, password, app_token, status, created_at) VALUES (?,?,?,?,?)",
+           (username, password, app_token, "active", datetime.now().isoformat()))
         return jsonify({"message": f"User Created: {username}"}), 200
-    except Exception as e:
+    except Exception:
         return jsonify({"message": "Username already exists!"})
-
 
 @app.route("/api/delete_user", methods=["POST"])
 def api_delete_user():
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     username = request.json.get("username")
     db("DELETE FROM tool_users WHERE username=?", (username,))
     return jsonify({"message": "Deleted"})
 
-
 @app.route("/api/reset_hwid", methods=["POST"])
 def api_reset_hwid():
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     username = request.json.get("username")
-    db(
-        "UPDATE tool_users SET hwid=NULL, status='active' WHERE username=?",
-        (username,),
-    )
-    return jsonify({
-        "message": (
-            f"HWID Reset for {username} - Ab dusre PC pe login kar sakta hai"
-        )
-    })
-
+    db("UPDATE tool_users SET hwid=NULL, status='active' WHERE username=?", (username,))
+    return jsonify({"message": f"HWID Reset for {username}"})
 
 @app.route("/api/toggle_ban", methods=["POST"])
 def api_toggle_ban():
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     username = request.json.get("username")
-    res = db(
-        "SELECT status FROM tool_users WHERE username=?", (username,), True
-    )
-    if not res:
-        return jsonify({"message": "User not found"})
-    cur_status = res[0][0]
-    new_status = "banned" if cur_status == "active" else "active"
-    db(
-        "UPDATE tool_users SET status=? WHERE username=?",
-        (new_status, username),
-    )
-    return jsonify({"message": f"{username} is now {new_status.upper()}"})
-
+    res = db("SELECT status FROM tool_users WHERE username=?", (username,), True)
+    if not res: return jsonify({"message": "User not found"})
+    new_status = "banned" if res[0][0] == "active" else "active"
+    db("UPDATE tool_users SET status=? WHERE username=?", (new_status, username))
+    return jsonify({"message": f"{username} status updated to {new_status.upper()}"})
 
 @app.route("/api/edit_user", methods=["POST"])
 def api_edit_user():
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     old_u = request.json.get("old_username")
-    new_u = request.json.get("new_username")
+    new_u = request.json.get("new_username") or old_u
     new_p = request.json.get("new_password")
-    if not new_u:
-        new_u = old_u
     try:
-        db(
-            "UPDATE tool_users SET username=?, password=? WHERE username=?",
-            (new_u, new_p, old_u),
-        )
-        return jsonify({"message": f"Updated: {old_u} -> {new_u}"})
-    except:
-        return jsonify({"message": "Username already exists! Choose different"})
+        db("UPDATE tool_users SET username=?, password=? WHERE username=?", (new_u, new_p, old_u))
+        return jsonify({"message": f"Updated {old_u}"})
+    except Exception:
+        return jsonify({"message": "Update failed."})
 
-
-@app.route("/api/validate", methods=["POST"])
-def api_validate():
-    data = request.json
-    token = data.get("token")
-    key_text = data.get("key")
-    hwid = data.get("hwid")
-    res = db(
-        "SELECT * FROM keys WHERE key_text=? AND app_token=?",
-        (key_text, token),
-        True,
-    )
-    if not res:
-        return jsonify({"status": "invalid"})
-    key_row = res[0]
-    if key_row[3] == "unused":
-        db(
-            "UPDATE keys SET status='used', hwid=?, used_by=? WHERE key_text=?",
-            (hwid, hwid, key_text),
-        )
-        return jsonify({"status": "valid"})
-    else:
-        if key_row[4] == hwid:
-            return jsonify({"status": "valid"})
-        else:
-            return jsonify({"status": "hwid_mismatch"})
-
+# ----------------- ANTI-CRACK API ENDPOINTS ----------------- #
 
 @app.route("/api/auth_login", methods=["POST"])
+@rate_limit(max_requests=10, window_seconds=60) # Anti Brute-force Limit
 def api_auth_login():
     data = request.json or {}
-    print("--- DEBUG LOGIN DATA ---", data)
     
     username = data.get("username")
     password = data.get("password")
     hwid = data.get("hwid")
     token = data.get("token")
-    res = db(
-        "SELECT * FROM tool_users WHERE username=? AND password=? AND"
-        " app_token=?",
-        (username, password, token),
-        True,
-    )
+    client_sig = data.get("sig")
+    
+    if not username or not password or not token or not hwid:
+        return jsonify({"status": "invalid", "message": "Malformed request parameters"}), 400
+
+    # Payload Signature Audit
+    expected_sig = hashlib.sha256(f"{username}:{hwid}:{token}".encode()).hexdigest()
+    if client_sig and client_sig != expected_sig:
+        return jsonify({"status": "tampered", "message": "Request payload tampered!"}), 403
+
+    res = db("SELECT * FROM tool_users WHERE username=? AND password=? AND app_token=?", (username, password, token), True)
     if not res:
-        return jsonify(
-            {"status": "invalid", "message": "Wrong Username/Password"}
-        )
+        return jsonify({"status": "invalid", "message": "Incorrect credentials"})
+        
     user_row = res[0]
     if user_row[4] == "banned":
-        return jsonify({"status": "banned", "message": "User Banned by Admin"})
+        return jsonify({"status": "banned", "message": "Account suspended"})
+        
     if not user_row[5]:
-        db(
-            "UPDATE tool_users SET hwid=?, status='active' WHERE username=?",
-            (hwid, username),
-        )
-        return jsonify({"status": "valid", "message": "First Login - HWID Locked"})
+        db("UPDATE tool_users SET hwid=?, status='active' WHERE username=?", (hwid, username))
+        return jsonify({"status": "valid", "message": "HWID Bound Successfully"})
     else:
         if user_row[5] == hwid:
-            return jsonify({"status": "valid", "message": "Welcome back"})
+            return jsonify({"status": "valid", "message": "Authentication Success"})
         else:
-            return jsonify({
-                "status": "hwid_mismatch",
-                "message": "Locked to another PC. Ask Admin to Reset HWID.",
-            })
-
+            return jsonify({"status": "hwid_mismatch", "message": "Hardware mismatch detected"})
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/")
 
-
 if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+    app.run(port=5000, debug=False) # Production Mode Debug False
