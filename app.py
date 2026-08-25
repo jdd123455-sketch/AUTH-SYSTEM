@@ -109,6 +109,8 @@ def init_db():
             name TEXT, 
             token TEXT UNIQUE, 
             owner_email TEXT, 
+            version TEXT DEFAULT '1.0',
+            status TEXT DEFAULT 'online',
             created_at TEXT
         )
     """)
@@ -281,7 +283,6 @@ CURSOR_SCRIPT = """
     dot.style.left = mx + 'px';
     dot.style.top = my + 'px';
 
-    // Ultra-Brutal & Stylish Particle Explosion on Mouse Move
     for(let i = 0; i < 3; i++) {
       particlesArray.push({ 
         x: mx, 
@@ -402,26 +403,6 @@ LANDING = """<!DOCTYPE html>
   <a href="/login" class="bg-gradient-to-r from-cyan-400 to-indigo-600 hover:scale-105 px-9 py-4 rounded-2xl text-sm font-bold shadow-[0_0_30px_rgba(34,211,238,0.6)] mt-9 transition duration-300 flex items-center gap-2">🚀 Get Started</a>
 </div>
 
-<div class="relative z-10 w-full max-w-6xl mx-auto px-6 py-20">
-  <div class="grid md:grid-cols-3 gap-8">
-    <div class="glass-card rounded-2xl p-7">
-      <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-2xl mb-4">🔐</div>
-      <h3 class="font-bold text-lg text-cyan-300">Hardware-Locked Protection</h3>
-      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Binds license activations to distinct motherboard hash signatures, completely mitigating account-sharing and unauthorized leaks.</p>
-    </div>
-    <div class="glass-card rounded-2xl p-7">
-      <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-2xl mb-4">🛡️</div>
-      <h3 class="font-bold text-lg text-indigo-300">Hardened API Security</h3>
-      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Protects endpoint payloads using dynamic SHA-256 signatures, defending against Fiddler, HTTP Debugger, and response spoofing.</p>
-    </div>
-    <div class="glass-card rounded-2xl p-7">
-      <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-2xl mb-4">⚡</div>
-      <h3 class="font-bold text-lg text-cyan-300">Instant Admin Console</h3>
-      <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Manage user registrations, execute immediate HWID resets, issue instant bans, and monitor active app tokens in real time.</p>
-    </div>
-  </div>
-</div>
-
 <footer class="relative z-10 text-center py-6 border-t border-white/5 text-xs text-zinc-600">
   &copy; 2026 HSL CORP. All rights reserved.
 </footer>
@@ -499,25 +480,50 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
   
   <div class="p-8">
+    <!-- OVERVIEW TAB -->
     <div id="tab-overview">
       <h1 class="text-2xl font-black">Dashboard Overview</h1>
-      <div class="mt-6 grid grid-cols-[1.3fr_1fr_0.7fr] gap-4">
+      
+      <!-- KeyAuth Style Quick Stats Cards -->
+      <div class="grid grid-cols-4 gap-4 mt-6">
+        <div class="glass-card rounded-2xl p-5">
+          <p class="text-[10px] font-bold text-cyan-400">TOTAL APPS</p>
+          <p class="text-2xl font-black mt-2">{{app_count}}</p>
+        </div>
+        <div class="glass-card rounded-2xl p-5">
+          <p class="text-[10px] font-bold text-indigo-400">TOTAL USERS</p>
+          <p class="text-2xl font-black mt-2">{{tool_user_count}}</p>
+        </div>
+        <div class="glass-card rounded-2xl p-5">
+          <p class="text-[10px] font-bold text-emerald-400">LICENSE KEYS</p>
+          <p class="text-2xl font-black mt-2">{{key_count}}</p>
+        </div>
+        <div class="glass-card rounded-2xl p-5">
+          <p class="text-[10px] font-bold text-yellow-400">PLAN LIMIT</p>
+          <p class="text-2xl font-black mt-2">{{tool_user_count}} / {{limit_text}}</p>
+        </div>
+      </div>
+
+      <div class="mt-6 grid grid-cols-[1.3fr_1fr] gap-6">
         <div class="glass-card rounded-2xl p-5">
           <p class="text-[10px] font-bold text-cyan-400 tracking-wider">ACTIVE APPLICATION</p>
           <select id="appSelect" onchange="selectApp(this.value)" class="bg-black/80 border border-white/20 rounded-xl px-3 py-2.5 text-xs mt-3 w-full font-semibold focus:outline-none focus:border-cyan-400">{{app_options}}</select>
-        </div>
-        <div class="glass-card rounded-2xl p-5">
-          <p class="text-[10px] font-bold text-zinc-400 tracking-wider">MASTER APP TOKEN</p>
-          <div class="mt-3 flex justify-between items-center bg-black/80 rounded-xl px-3 py-2 border border-white/10">
+          
+          <p class="text-[10px] font-bold text-zinc-400 tracking-wider mt-5">MASTER APP TOKEN</p>
+          <div class="mt-2 flex justify-between items-center bg-black/80 rounded-xl px-3 py-2 border border-white/10">
             <p id="tokenDisplay" class="text-xs font-mono text-zinc-300 truncate">{{active_token}}</p>
             <button onclick="copyToken()" class="text-[10px] bg-gradient-to-r from-cyan-400 to-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:scale-105 transition">Copy</button>
           </div>
         </div>
-        <div class="glass-card rounded-2xl p-5">
-          <p class="text-[10px] font-bold text-zinc-400 tracking-wider">PLAN LIMIT</p>
-          <p class="text-xs font-bold mt-3">{{tool_user_count}} / {{limit_text}} Used</p>
-          <div class="w-full bg-zinc-800 h-2 mt-3 rounded-full overflow-hidden">
-            <div class="bg-gradient-to-r from-cyan-400 to-indigo-600 h-2 rounded-full" style="width:{{percent}}%"></div>
+        
+        <div class="glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <p class="text-xs font-bold text-cyan-300">🚀 Quick Actions</p>
+            <p class="text-[11px] text-zinc-400 mt-1">Manage your software security instantly.</p>
+          </div>
+          <div class="space-y-2 mt-4">
+            <button onclick="showTab('applications')" class="w-full bg-zinc-800/80 hover:bg-zinc-700 py-2.5 rounded-xl text-xs font-bold transition">Manage Apps & Versions</button>
+            <button onclick="showTab('keys')" class="w-full bg-zinc-800/80 hover:bg-zinc-700 py-2.5 rounded-xl text-xs font-bold transition">Generate Batch Keys</button>
           </div>
         </div>
       </div>
@@ -532,18 +538,20 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- APPLICATIONS TAB -->
     <div id="tab-applications" class="hidden">
-      <h1 class="text-2xl font-black">Applications</h1>
+      <h1 class="text-2xl font-black">Applications & Version Control</h1>
       <div class="glass-card mt-6 rounded-2xl p-7">
         <div class="space-y-3 mb-6">{{app_list_html}}</div>
         <div class="border-t border-white/10 pt-5">
           <p class="text-base font-bold">+ Create New App</p>
-          <input id="newAppName" placeholder="App Name" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
+          <input id="newAppName" placeholder="App Name (e.g. Valorant Cheat / Tool)" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400">
           <button onclick="createApp()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create Application</button>
         </div>
       </div>
     </div>
 
+    <!-- USERS TAB -->
     <div id="tab-tool_users" class="hidden">
       <h1 class="text-2xl font-black">Username / Pass Users ({{tool_user_count}}/{{limit_text}})</h1>
       <div class="glass-card mt-6 rounded-2xl p-6">
@@ -551,13 +559,22 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- KEYS TAB (KeyAuth Batch Generator) -->
     <div id="tab-keys" class="hidden">
-      <h1 class="text-2xl font-black">License Keys</h1>
+      <h1 class="text-2xl font-black">License Key Manager</h1>
       <div class="glass-card mt-6 rounded-2xl p-6">
-        <div class="space-y-3 text-xs font-mono">{{keys_list_html}}</div>
+        <div class="bg-black/60 border border-white/10 p-5 rounded-xl mb-6">
+          <p class="text-xs font-bold text-cyan-300 mb-3">🔑 Generate Batch License Keys</p>
+          <div class="flex gap-3">
+            <input id="keyCount" type="number" value="5" min="1" max="50" class="w-24 bg-black/80 border border-white/15 rounded-xl px-3 py-2.5 text-xs">
+            <button onclick="generateKeys()" class="bg-gradient-to-r from-cyan-400 to-indigo-600 px-6 py-2.5 rounded-xl text-xs font-bold transition">Generate Keys</button>
+          </div>
+        </div>
+        <div class="space-y-2 text-xs font-mono max-h-[350px] overflow-y-auto">{{keys_list_html}}</div>
       </div>
     </div>
 
+    <!-- INTEGRATION TAB -->
     <div id="tab-integrate" class="hidden">
       <h1 class="text-2xl font-black">Secure Client Integration Code</h1>
       <div class="glass-card mt-6 rounded-2xl p-7">
@@ -599,6 +616,7 @@ def secure_login(username, password):
       </div>
     </div>
 
+    <!-- BILLING TAB -->
     <div id="tab-billing" class="hidden">
       <h1 class="text-2xl font-black">Billing / Plans</h1>
       <div class="grid grid-cols-2 gap-6 mt-6">
@@ -638,30 +656,37 @@ function showTab(name) {
 
 async function createApp() {
     let name = document.getElementById('newAppName').value.trim();
-    if(!name) {
-        alert('Enter Name!');
-        return;
-    }
+    if(!name) { alert('Enter Name!'); return; }
     let res = await fetch('/api/create_app', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({name: name})
     });
     let data = await res.json();
-    if(data.error) {
-        alert(data.error);
-    } else {
-        alert('App Created! Token: ' + data.token);
-        location.reload();
-    }
+    if(data.error) { alert(data.error); } else { alert('App Created!'); location.reload(); }
 }
 
 async function deleteApp(token) {
-    if(!confirm('Are you sure you want to delete this application? Associated users might also be affected.')) return;
+    if(!confirm('Delete this application?')) return;
     let res = await fetch('/api/delete_app', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({token: token})
+    });
+    let data = await res.json();
+    alert(data.message);
+    location.reload();
+}
+
+async function generateKeys() {
+    let token = document.getElementById('tokenDisplay').innerText;
+    let count = document.getElementById('keyCount').value;
+    if(!token.startsWith('HSL_')) { alert('Please select a valid app token first!'); return; }
+    
+    let res = await fetch('/api/generate_keys', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({app_token: token, count: count})
     });
     let data = await res.json();
     alert(data.message);
@@ -682,11 +707,7 @@ async function createUser() {
     let u = document.getElementById('newUsername').value.trim();
     let p = document.getElementById('newPassword').value.trim();
     let token = document.getElementById('tokenDisplay').innerText;
-    
-    if(!u || !p) {
-        alert('Fill fields!');
-        return;
-    }
+    if(!u || !p) { alert('Fill fields!'); return; }
     
     let res = await fetch('/api/create_user', {
         method: 'POST',
@@ -733,20 +754,13 @@ async function toggleBan(username) {
 }
 
 async function editUser(oldU, oldP) {
-    let newU = prompt("New Username:", oldU); 
-    if(newU === null) return;
-    
-    let newP = prompt("New Password:", oldP); 
-    if(newP === null) return;
+    let newU = prompt("New Username:", oldU); if(newU === null) return;
+    let newP = prompt("New Password:", oldP); if(newP === null) return;
     
     let res = await fetch('/api/edit_user', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            old_username: oldU, 
-            new_username: newU.trim(), 
-            new_password: newP.trim()
-        })
+        body: JSON.stringify({old_username: oldU, new_username: newU.trim(), new_password: newP.trim()})
     });
     let data = await res.json();
     alert(data.message);
@@ -797,22 +811,20 @@ def dash():
     plan_color = "text-green-400" if is_paid else "text-yellow-400"
     
     apps = db("SELECT * FROM apps WHERE owner_email=?", (email,), True)
+    app_count = len(apps) if apps else 0
     
     if not apps:
         app_options = "<option>No Apps Created</option>"
         active_token = "Create an app to get Token"
         app_list_html = "<p class='text-zinc-500 text-sm'>No apps yet - Create one below</p>"
     else:
-        app_options = "".join([
-            f"<option value='{a[2]}'>{a[1]}</option>" 
-            for a in apps
-        ])
+        app_options = "".join([f"<option value='{a[2]}'>{a[1]}</option>" for a in apps])
         active_token = apps[0][2]
         app_list_html = "".join([
             f"""<div class='bg-black/80 border border-white/10 rounded-xl px-4 py-3 flex justify-between items-center mb-2'>
                 <div>
                     <span class='font-bold text-white'>{a[1]}</span><br>
-                    <span class='text-xs text-zinc-500 font-mono'>{a[2][:25]}...</span>
+                    <span class='text-xs text-zinc-500 font-mono'>Token: {a[2]}</span>
                 </div>
                 <button onclick="deleteApp('{a[2]}')" class='bg-red-900/50 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs hover:bg-red-800 transition text-red-300 font-semibold'>Delete App</button>
             </div>"""
@@ -820,10 +832,11 @@ def dash():
         ])
         
     keys = db("SELECT * FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
+    key_count = len(keys) if keys else 0
     
     if keys:
         keys_list_html = "".join([
-            f"<div class='flex justify-between bg-black/80 border border-white/10 rounded-xl px-4 py-3'><span>{k[1]}</span><span class='{'text-green-400' if k[3] == 'unused' else 'text-red-400'}'>● {k[3]}</span></div>"
+            f"<div class='flex justify-between bg-black/80 border border-white/10 rounded-xl px-4 py-3'><span>{k[1]}</span><span class='{'text-green-400' if k[3] == 'unused' else 'text-red-400'}'>● {k[3].upper()}</span></div>"
             for k in keys
         ])
     else:
@@ -832,11 +845,7 @@ def dash():
     tool_users = db("SELECT * FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True) if apps else []
     tool_user_count = len(tool_users)
     
-    if tool_user_count == 0:
-        percent = 10
-    else:
-        max_limit = 999999 if is_paid else 10
-        percent = min(int(tool_user_count / max_limit * 100), 100)
+    percent = min(int(tool_user_count / (999999 if is_paid else 10) * 100), 100) if tool_user_count > 0 else 10
     
     tool_users_list_html = ""
     for u in tool_users:
@@ -865,6 +874,8 @@ def dash():
     html = (
         DASHBOARD_HTML.replace("{{name}}", session["user"].get("name", "User"))
         .replace("{{email}}", email)
+        .replace("{{app_count}}", str(app_count))
+        .replace("{{key_count}}", str(key_count))
         .replace("{{app_options}}", app_options)
         .replace("{{active_token}}", active_token)
         .replace("{{app_list_html}}", app_list_html)
@@ -885,201 +896,112 @@ def dash():
 def check_limit(email):
     if email in PAID_USERS:
         return False
-        
     tool_users = db("SELECT COUNT(*) FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
     keys = db("SELECT COUNT(*) FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
-    
-    user_count = tool_users[0][0] if tool_users else 0
-    key_count = keys[0][0] if keys else 0
-    
-    return (user_count + key_count) >= 10
+    return ((tool_users[0][0] if tool_users else 0) + (keys[0][0] if keys else 0)) >= 10
 
 @app.route("/api/create_app", methods=["POST"])
 def api_create_app():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-        
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     email = session["user"]["email"]
     apps = db("SELECT COUNT(*) FROM apps WHERE owner_email=?", (email,), True)
-    
     if email not in PAID_USERS and apps[0][0] >= 2:
-        return jsonify({"error": "Free Plan limit reached. Max 2 applications allowed. Delete an existing app to create a new one."})
+        return jsonify({"error": "Free Plan limit reached. Max 2 applications allowed."})
         
     name = request.json.get("name", "").strip()
-    if not name:
-        return jsonify({"error": "Invalid app name"})
-        
-    random_str = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
-    token = f"HSL_{random_str}"
+    if not name: return jsonify({"error": "Invalid app name"})
     
-    db(
-        "INSERT INTO apps (name, token, owner_email, created_at) VALUES (?,?,?,?)", 
-        (name, token, email, datetime.now().isoformat())
-    )
-    
+    token = f"HSL_{''.join(random.choices(string.ascii_uppercase + string.digits, k=24))}"
+    db("INSERT INTO apps (name, token, owner_email, created_at) VALUES (?,?,?,?)", (name, token, email, datetime.now().isoformat()))
     return jsonify({"token": token})
 
 @app.route("/api/delete_app", methods=["POST"])
 def api_delete_app():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-        
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     email = session["user"]["email"]
     token = request.json.get("token")
+    db("DELETE FROM apps WHERE token=? AND owner_email=?", (token, email))
+    db("DELETE FROM tool_users WHERE app_token=?", (token,))
+    db("DELETE FROM keys WHERE app_token=?", (token,))
+    return jsonify({"message": "Application deleted successfully."})
+
+@app.route("/api/generate_keys", methods=["POST"])
+def api_generate_keys():
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    email = session["user"]["email"]
+    data = request.json or {}
+    token = data.get("app_token")
+    count = int(data.get("count", 5))
     
     app_check = db("SELECT * FROM apps WHERE token=? AND owner_email=?", (token, email), True)
-    if not app_check:
-        return jsonify({"message": "App not found or unauthorized!"})
-        
-    db("DELETE FROM apps WHERE token=?", (token,))
-    db("DELETE FROM tool_users WHERE app_token=?", (token,))
+    if not app_check: return jsonify({"message": "Invalid App Token!"})
     
-    return jsonify({"message": "Application deleted successfully."})
+    generated = 0
+    for _ in range(count):
+        if check_limit(email): break
+        k_text = "HSL-" + "-".join("".join(random.choices(string.ascii_uppercase + string.digits, k=4)) for _ in range(3))
+        try:
+            db("INSERT INTO keys (key_text, app_token, status, created_at) VALUES (?,?,?,?)", (k_text, token, "unused", datetime.now().isoformat()))
+            generated += 1
+        except Exception:
+            pass
+            
+    return jsonify({"message": f"Successfully generated {generated} keys!"})
 
 @app.route("/api/create_user", methods=["POST"])
 def api_create_user():
     data = request.json or {}
-    app_token = data.get("app_token")
-    username = data.get("username", "").strip()
-    password = data.get("password", "").strip()
-
-    if not username or not password or not app_token:
-        return jsonify({"message": "Missing required fields!"})
+    app_token, username, password = data.get("app_token"), data.get("username", "").strip(), data.get("password", "").strip()
+    if not username or not password or not app_token: return jsonify({"message": "Missing required fields!"})
 
     app_data = db("SELECT owner_email FROM apps WHERE token=?", (app_token,), True)
-    if not app_data:
-        return jsonify({"message": "Invalid App Token!"})
+    if not app_data: return jsonify({"message": "Invalid App Token!"})
 
-    email = app_data[0][0]
-    if check_limit(email):
-        return jsonify({"message": "Plan limit reached!"})
+    if check_limit(app_data[0][0]): return jsonify({"message": "Plan limit reached!"})
 
     try:
-        db(
-            "INSERT INTO tool_users (username, password, app_token, status, created_at) VALUES (?,?,?,?,?)",
-            (username, password, app_token, "active", datetime.now().isoformat())
-        )
+        db("INSERT INTO tool_users (username, password, app_token, status, created_at) VALUES (?,?,?,?,?)", (username, password, app_token, "active", datetime.now().isoformat()))
         return jsonify({"message": f"User Created: {username}"}), 200
     except Exception:
         return jsonify({"message": "Username already exists!"})
 
 @app.route("/api/delete_user", methods=["POST"])
 def api_delete_user():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
-        
-    username = request.json.get("username")
-    db("DELETE FROM tool_users WHERE username=?", (username,))
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    db("DELETE FROM tool_users WHERE username=?", (request.json.get("username"),))
     return jsonify({"message": "Deleted successfully"})
 
 @app.route("/api/reset_hwid", methods=["POST"])
 def api_reset_hwid():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
-        
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     username = request.json.get("username")
     db("UPDATE tool_users SET hwid=NULL, status='active' WHERE username=?", (username,))
     return jsonify({"message": f"HWID Reset for {username}"})
 
 @app.route("/api/toggle_ban", methods=["POST"])
 def api_toggle_ban():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
-        
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     username = request.json.get("username")
     res = db("SELECT status FROM tool_users WHERE username=?", (username,), True)
-    
-    if not res: 
-        return jsonify({"message": "User not found"})
-        
+    if not res: return jsonify({"message": "User not found"})
     new_status = "banned" if res[0][0] == "active" else "active"
     db("UPDATE tool_users SET status=? WHERE username=?", (new_status, username))
-    
-    return jsonify({"message": f"{username} status updated to {new_status.upper()}"})
+    return jsonify({"message": f"Status updated to {new_status.upper()}"})
 
 @app.route("/api/edit_user", methods=["POST"])
 def api_edit_user():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
-        
-    old_u = request.json.get("old_username")
-    new_u = request.json.get("new_username") or old_u
-    new_p = request.json.get("new_password")
-    
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    old_u, new_u, new_p = request.json.get("old_username"), request.json.get("new_username"), request.json.get("new_password")
     try:
         db("UPDATE tool_users SET username=?, password=? WHERE username=?", (new_u, new_p, old_u))
         return jsonify({"message": f"Updated {old_u}"})
     except Exception:
         return jsonify({"message": "Update failed."})
 
-@app.route("/api/auth_login", methods=["POST"])
-@rate_limit(max_requests=10, window_seconds=60)
-def api_auth_login():
-    data = request.json or {}
-    
-    username = data.get("username")
-    password = data.get("password")
-    hwid = data.get("hwid")
-    token = data.get("token")
-    client_sig = data.get("sig")
-    
-    if not username or not password or not token or not hwid:
-        return jsonify({
-            "status": "invalid", 
-            "message": "Malformed request parameters"
-        }), 400
-
-    expected_sig = hashlib.sha256(f"{username}:{hwid}:{token}".encode()).hexdigest()
-    if client_sig and client_sig != expected_sig:
-        return jsonify({
-            "status": "tampered", 
-            "message": "Request payload tampered!"
-        }), 403
-
-    res = db("SELECT * FROM tool_users WHERE username=? AND password=? AND app_token=?", (username, password, token), True)
-    if not res:
-        return jsonify({
-            "status": "invalid", 
-            "message": "Incorrect credentials"
-        })
-        
-    user_row = res[0]
-    if user_row[4] == "banned":
-        return jsonify({
-            "status": "banned", 
-            "message": "Account suspended"
-        })
-        
-    if not user_row[5]:
-        db("UPDATE tool_users SET hwid=?, status='active' WHERE username=?", (hwid, username))
-        return jsonify({
-            "status": "valid", 
-            "message": "HWID Bound Successfully"
-        })
-    else:
-        if user_row[5] == hwid:
-            return jsonify({
-                "status": "valid", 
-                "message": "Authentication Success"
-            })
-        else:
-            return jsonify({
-                "status": "hwid_mismatch", 
-                "message": "Hardware mismatch detected"
-            })
-
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/")
 
-# ==========================================
-# SERVER RUNNER
-# ==========================================
-
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=5000, 
-        debug=False
-    )
+    app.run(host="0.0.0.0", port=5000, debug=False)
