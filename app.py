@@ -756,6 +756,11 @@ def home():
 def login():
     return render_template_string(LOGIN)
 
+@app.route("/logout")
+def logout():
+    session.pop("user", None)
+    return redirect("/")
+
 @app.route("/auth/google")
 @rate_limit(max_requests=5, window_seconds=60)
 def auth_google():
@@ -778,6 +783,7 @@ def dash():
         return redirect("/login")
         
     email = session["user"]["email"]
+    name = session["user"].get("name", "Developer")
     is_paid = email in PAID_USERS
     limit_text = "Unlimited" if is_paid else "10"
     plan_text = "PRO UNLIMITED" if is_paid else "FREE"
@@ -843,232 +849,190 @@ def dash():
                 <button onclick="resetHwid('{u[1]}')" class='bg-zinc-800 border border-white/10 px-3 py-1 rounded-lg text-[10px] hover:bg-zinc-700 transition'>Reset HWID</button>
                 <button onclick="deleteUser('{u[1]}')" class='bg-red-900/50 border border-red-500/30 px-3 py-1 rounded-lg text-[10px] hover:bg-red-800 transition'>Delete</button>
             </div>
-        </div>
-        """
-        
-    if not tool_users_list_html:
-        tool_users_list_html = "<p class='text-center text-zinc-600 text-xs mt-10'>No registered users found.</p>"
+        </div>"""
 
-    html = (
-        DASHBOARD_HTML.replace("{{name}}", session["user"].get("name", "User"))
-        .replace("{{email}}", email)
-        .replace("{{app_options}}", app_options)
-        .replace("{{active_token}}", active_token)
-        .replace("{{app_list_html}}", app_list_html)
-        .replace("{{keys_list_html}}", keys_list_html)
-        .replace("{{tool_user_count}}", str(tool_user_count))
-        .replace("{{limit_text}}", limit_text)
-        .replace("{{plan_text}}", plan_text)
-        .replace("{{plan_color}}", plan_color)
-        .replace("{{percent}}", str(percent))
-        .replace("{{tool_users_list_html}}", tool_users_list_html)
-    )
-    return render_template_string(html)
+    rendered_html = DASHBOARD_HTML.replace("{{email}}", email)
+    rendered_html = rendered_html.replace("{{name}}", name)
+    rendered_html = rendered_html.replace("{{plan_text}}", plan_text)
+    rendered_html = rendered_html.replace("{{plan_color}}", plan_color)
+    rendered_html = rendered_html.replace("{{limit_text}}", limit_text)
+    rendered_html = rendered_html.replace("{{active_token}}", active_token)
+    rendered_html = rendered_html.replace("{{app_options}}", app_options)
+    rendered_html = rendered_html.replace("{{app_list_html}}", app_list_html)
+    rendered_html = rendered_html.replace("{{keys_list_html}}", keys_list_html)
+    rendered_html = rendered_html.replace("{{tool_users_list_html}}", tool_users_list_html)
+    rendered_html = rendered_html.replace("{{tool_user_count}}", str(tool_user_count))
+    rendered_html = rendered_html.replace("{{percent}}", str(percent))
+
+    return render_template_string(rendered_html)
 
 # ==========================================
-# REST API ENDPOINTS
+# BACKEND API ENDPOINTS
 # ==========================================
-
-def check_limit(email):
-    if email in PAID_USERS:
-        return False
-        
-    tool_users = db("SELECT COUNT(*) FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
-    keys = db("SELECT COUNT(*) FROM keys WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
-    
-    user_count = tool_users[0][0] if tool_users else 0
-    key_count = keys[0][0] if keys else 0
-    
-    return (user_count + key_count) >= 10
 
 @app.route("/api/create_app", methods=["POST"])
 def api_create_app():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.get_json() or {}
+    name = data.get("name")
+    if not name:
+        return jsonify({"error": "App name is required"}), 400
         
     email = session["user"]["email"]
-    apps = db("SELECT COUNT(*) FROM apps WHERE owner_email=?", (email,), True)
+    apps = db("SELECT id FROM apps WHERE owner_email=?", (email,), True)
+    is_paid = email in PAID_USERS
     
-    # Free Plan limit set to 2 Applications max
-    if email not in PAID_USERS and apps[0][0] >= 2:
-        return jsonify({"error": "Free Plan limit reached. Max 2 applications allowed. Delete an existing app to create a new one."})
+    if len(apps) >= 2 and not is_paid:
+        return jsonify({"error": "Free tier is limited to 2 applications. Upgrade to Pro for unlimited apps."}), 403
         
-    name = request.json.get("name", "").strip()
-    if not name:
-        return jsonify({"error": "Invalid app name"})
-        
-    random_str = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
-    token = f"HSL_{random_str}"
+    token = "hsl_" + "".join(random.choices(string.ascii_letters + string.digits, k=32))
+    created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     
-    db(
-        "INSERT INTO apps (name, token, owner_email, created_at) VALUES (?,?,?,?)", 
-        (name, token, email, datetime.now().isoformat())
-    )
-    
-    return jsonify({"token": token})
+    db("INSERT INTO apps (name, token, owner_email, created_at) VALUES (?, ?, ?, ?)", (name, token, email, created_at))
+    return jsonify({"status": "success", "token": token})
 
 @app.route("/api/delete_app", methods=["POST"])
 def api_delete_app():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
         
+    data = request.get_json() or {}
+    token = data.get("token")
     email = session["user"]["email"]
-    token = request.json.get("token")
     
-    # Verify ownership before deleting
-    app_check = db("SELECT * FROM apps WHERE token=? AND owner_email=?", (token, email), True)
-    if not app_check:
-        return jsonify({"message": "App not found or unauthorized!"})
+    app_record = db("SELECT id FROM apps WHERE token=? AND owner_email=?", (token, email), True)
+    if not app_record:
+        return jsonify({"message": "Application not found or unauthorized"}), 404
         
     db("DELETE FROM apps WHERE token=?", (token,))
     db("DELETE FROM tool_users WHERE app_token=?", (token,))
-    
-    return jsonify({"message": "Application deleted successfully."})
+    db("DELETE FROM keys WHERE app_token=?", (token,))
+    return jsonify({"status": "success", "message": "Application and associated data deleted successfully."})
 
 @app.route("/api/create_user", methods=["POST"])
 def api_create_user():
-    data = request.json or {}
+    if "user" not in session:
+        return jsonify({"message": "Unauthorized"}), 401
+        
+    data = request.get_json() or {}
+    username = data.get("username")
+    password = data.get("password")
     app_token = data.get("app_token")
-    username = data.get("username", "").strip()
-    password = data.get("password", "").strip()
-
+    
     if not username or not password or not app_token:
-        return jsonify({"message": "Missing required fields!"})
-
-    app_data = db("SELECT owner_email FROM apps WHERE token=?", (app_token,), True)
-    if not app_data:
-        return jsonify({"message": "Invalid App Token!"})
-
-    email = app_data[0][0]
-    if check_limit(email):
-        return jsonify({"message": "Plan limit reached!"})
-
-    try:
-        db(
-            "INSERT INTO tool_users (username, password, app_token, status, created_at) VALUES (?,?,?,?,?)",
-            (username, password, app_token, "active", datetime.now().isoformat())
-        )
-        return jsonify({"message": f"User Created: {username}"}), 200
-    except Exception:
-        return jsonify({"message": "Username already exists!"})
+        return jsonify({"message": "All fields are required"}), 400
+        
+    email = session["user"]["email"]
+    is_paid = email in PAID_USERS
+    
+    tool_users = db("SELECT id FROM tool_users WHERE app_token IN (SELECT token FROM apps WHERE owner_email=?)", (email,), True)
+    if len(tool_users) >= 10 and not is_paid:
+        return jsonify({"message": "Free tier limit of 10 users reached. Upgrade to Pro for unlimited users."}), 403
+        
+    existing = db("SELECT id FROM tool_users WHERE username=?", (username,), True)
+    if existing:
+        return jsonify({"message": "Username already exists!"}), 400
+        
+    created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    db("INSERT INTO tool_users (username, password, app_token, status, hwid, created_at) VALUES (?, ?, ?, ?, ?, ?)", 
+       (username, password, app_token, "active", "", created_at))
+       
+    return jsonify({"status": "success", "message": f"User '{username}' created successfully!"})
 
 @app.route("/api/delete_user", methods=["POST"])
 def api_delete_user():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
+    if "user" not in session:
+        return jsonify({"message": "Unauthorized"}), 401
         
-    username = request.json.get("username")
+    data = request.get_json() or {}
+    username = data.get("username")
+    
     db("DELETE FROM tool_users WHERE username=?", (username,))
-    return jsonify({"message": "Deleted successfully"})
+    return jsonify({"status": "success", "message": f"User '{username}' deleted successfully."})
 
 @app.route("/api/reset_hwid", methods=["POST"])
 def api_reset_hwid():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
+    if "user" not in session:
+        return jsonify({"message": "Unauthorized"}), 401
         
-    username = request.json.get("username")
-    db("UPDATE tool_users SET hwid=NULL, status='active' WHERE username=?", (username,))
-    return jsonify({"message": f"HWID Reset for {username}"})
+    data = request.get_json() or {}
+    username = data.get("username")
+    
+    db("UPDATE tool_users SET hwid='' WHERE username=?", (username,))
+    return jsonify({"status": "success", "message": f"HWID successfully reset for '{username}'."})
 
 @app.route("/api/toggle_ban", methods=["POST"])
 def api_toggle_ban():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
+    if "user" not in session:
+        return jsonify({"message": "Unauthorized"}), 401
         
-    username = request.json.get("username")
-    res = db("SELECT status FROM tool_users WHERE username=?", (username,), True)
+    data = request.get_json() or {}
+    username = data.get("username")
     
-    if not res: 
-        return jsonify({"message": "User not found"})
+    user_record = db("SELECT status FROM tool_users WHERE username=?", (username,), True)
+    if not user_record:
+        return jsonify({"message": "User not found"}), 404
         
-    new_status = "banned" if res[0][0] == "active" else "active"
+    current_status = user_record[0][0]
+    new_status = "banned" if current_status == "active" else "active"
+    
     db("UPDATE tool_users SET status=? WHERE username=?", (new_status, username))
-    
-    return jsonify({"message": f"{username} status updated to {new_status.upper()}"})
+    return jsonify({"status": "success", "message": f"User status updated to {new_status.upper()}."})
 
 @app.route("/api/edit_user", methods=["POST"])
 def api_edit_user():
-    if "user" not in session: 
-        return jsonify({"error": "Unauthorized"}), 401
+    if "user" not in session:
+        return jsonify({"message": "Unauthorized"}), 401
         
-    old_u = request.json.get("old_username")
-    new_u = request.json.get("new_username") or old_u
-    new_p = request.json.get("new_password")
+    data = request.get_json() or {}
+    old_username = data.get("old_username")
+    new_username = data.get("new_username")
+    new_password = data.get("new_password")
     
-    try:
-        db("UPDATE tool_users SET username=?, password=? WHERE username=?", (new_u, new_p, old_u))
-        return jsonify({"message": f"Updated {old_u}"})
-    except Exception:
-        return jsonify({"message": "Update failed."})
+    if not new_username or not new_password:
+        return jsonify({"message": "Username and password cannot be empty"}), 400
+        
+    db("UPDATE tool_users SET username=?, password=? WHERE username=?", (new_username, new_password, old_username))
+    return jsonify({"status": "success", "message": "User details updated successfully."})
 
 @app.route("/api/auth_login", methods=["POST"])
-@rate_limit(max_requests=10, window_seconds=60)
 def api_auth_login():
-    data = request.json or {}
-    
+    data = request.get_json() or {}
     username = data.get("username")
     password = data.get("password")
     hwid = data.get("hwid")
     token = data.get("token")
-    client_sig = data.get("sig")
+    sig = data.get("sig")
     
-    if not username or not password or not token or not hwid:
-        return jsonify({
-            "status": "invalid", 
-            "message": "Malformed request parameters"
-        }), 400
-
-    expected_sig = hashlib.sha256(f"{username}:{hwid}:{token}".encode()).hexdigest()
-    if client_sig and client_sig != expected_sig:
-        return jsonify({
-            "status": "tampered", 
-            "message": "Request payload tampered!"
-        }), 403
-
-    res = db("SELECT * FROM tool_users WHERE username=? AND password=? AND app_token=?", (username, password, token), True)
-    if not res:
-        return jsonify({
-            "status": "invalid", 
-            "message": "Incorrect credentials"
-        })
+    if not all([username, password, hwid, token, sig]):
+        return jsonify({"status": "error", "message": "Missing required payload parameters"}), 400
         
-    user_row = res[0]
-    if user_row[4] == "banned":
-        return jsonify({
-            "status": "banned", 
-            "message": "Account suspended"
-        })
+    raw_sig = f"{username}:{hwid}:{token}"
+    expected_sig = hashlib.sha256(raw_sig.encode()).hexdigest()
+    
+    if sig != expected_sig:
+        return jsonify({"status": "error", "message": "Payload signature verification failed (Tampering detected)"}), 403
         
-    if not user_row[5]:
-        db("UPDATE tool_users SET hwid=?, status='active' WHERE username=?", (hwid, username))
-        return jsonify({
-            "status": "valid", 
-            "message": "HWID Bound Successfully"
-        })
-    else:
-        if user_row[5] == hwid:
-            return jsonify({
-                "status": "valid", 
-                "message": "Authentication Success"
-            })
-        else:
-            return jsonify({
-                "status": "hwid_mismatch", 
-                "message": "Hardware mismatch detected"
-            })
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect("/")
-
-# ==========================================
-# SERVER RUNNER
-# ==========================================
+    user_record = db("SELECT password, status, hwid FROM tool_users WHERE username=? AND app_token=?", (username, token), True)
+    if not user_record:
+        return jsonify({"status": "error", "message": "Invalid username or application token"}), 401
+        
+    db_pass, status, db_hwid = user_record[0]
+    
+    if status == "banned":
+        return jsonify({"status": "error", "message": "Account is banned by administrator"}), 403
+        
+    if db_pass != password:
+        return jsonify({"status": "error", "message": "Incorrect password"}), 401
+        
+    if not db_hwid:
+        db("UPDATE tool_users SET hwid=? WHERE username=?", (hwid, username))
+    elif db_hwid != hwid:
+        return jsonify({"status": "error", "message": "HWID mismatch! This account is locked to another machine."}), 403
+        
+    return jsonify({"status": "success", "message": "Authentication successful", "session_token": hashlib.sha256(os.urandom(32)).hexdigest()})
 
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=5000, 
-        debug=False
-    )
+    app.run(host="0.0.0.0", port=5000, debug=True)
