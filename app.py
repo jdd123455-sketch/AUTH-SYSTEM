@@ -311,26 +311,27 @@ def api_auth_login():
             return jsonify({"status":"hwid_mismatch", "message":"Locked to another PC. Ask Admin to Reset HWID."})
 @app.route("/verify", methods=["POST"])
 def verify():
-    key = request.form.get('key')
-    if not key:
-        j = request.get_json(silent=True)
-        if j:
-            key = j.get('key') or j.get('username') or j.get('license')
-    print(f"[VERIFY] Received key: {key}")
-    if not key:
-        return jsonify({"success": False, "message": "No key"}), 400
-    key = key.strip()
+    data = request.get_json(silent=True) or request.form
+    username = (data.get('username') or data.get('user') or data.get('key') or '').strip()
+    password = (data.get('password') or data.get('pass') or '').strip()
+    
+    print(f"[VERIFY] User:{username} Pass:{password}")
+
+    if not username or not password:
+        return jsonify({"success": False, "message": "Enter User Pass"}), 400
+
     try:
-        res = db("SELECT * FROM tool_users WHERE LOWER(username)=LOWER(?)", (key,))
-        print(f"[VERIFY] DB result: {res}")
+        # Username + Password dono check
+        res = db("SELECT * FROM tool_users WHERE LOWER(username)=LOWER(?) AND password=?", (username, password))
+        print(f"[VERIFY] DB: {res}")
+
         if not res:
-            return jsonify({"success": False, "message": "Invalid Key", "received": key})
-        if len(res[0]) > 4 and str(res[0][4]).lower() == 'banned':
-            return jsonify({"success": False, "message": "Banned"})
-        return jsonify({"success": True, "true": True, "message": "Login Success"})
+            return jsonify({"success": False, "message": "Invalid User or Pass"})
+
+        return jsonify({"success": True, "message": "Login Success"})
     except Exception as e:
-        print(f"[VERIFY ERROR] {e}")
-        return jsonify({"success": False, "message": f"Server Error: {e}"}), 500
+        print(f"[ERROR] {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/logout")
 def logout():
