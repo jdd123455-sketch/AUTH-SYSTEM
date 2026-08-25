@@ -1,11 +1,11 @@
 import discord
 from discord.ext import commands
 import sqlite3
-
+import os
 # --- CONFIG ---
-BOT_TOKEN = "YOUR_DISCORD_BOT_TOKEN_DALO_YAHAN"
-OWNER_ID = 1517901703263944758 # Apni Discord ID dalo (Developer mode on karke copy)
-DB_PATH = "hsl.db" # same as website
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+OWNER_ID = int(os.getenv("OWNER_ID", "1517901703263944758"))
+DB_PATH = "hsl.db"
 
 # Bot setup - Prefix =, (comma)
 intents = discord.Intents.default()
