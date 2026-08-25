@@ -65,7 +65,6 @@ def rate_limit(max_requests=10, window_seconds=60):
             if ip not in REQUEST_HISTORY:
                 REQUEST_HISTORY[ip] = []
                 
-            # Filter timestamps older than the window
             REQUEST_HISTORY[ip] = [t for t in REQUEST_HISTORY[ip] if now - t < window_seconds]
             
             if len(REQUEST_HISTORY[ip]) >= max_requests:
@@ -198,7 +197,7 @@ CURSOR_SCRIPT = """
 </script>
 """
 
-LANDING = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}</head><body class="text-white overflow-x-hidden relative"><canvas id="c"></canvas>
+LANDING = """<!DOCTYPE html><html><head>""" + COMMON_HEAD + """</head><body class="text-white overflow-x-hidden relative"><canvas id="c"></canvas>
 <nav class="relative z-10 flex justify-between items-center px-8 py-4 bg-black/40 backdrop-blur-md border-b border-cyan-500/10">
   <div class="flex items-center gap-3">
     <div class="w-9 h-9 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_#22d3ee]">👾</div>
@@ -237,10 +236,10 @@ LANDING = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}</head><body class="text-w
     </div>
   </div>
 </div>
-{CURSOR_SCRIPT}
+""" + CURSOR_SCRIPT + """
 </body></html>"""
 
-LOGIN = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}</head><body class="flex items-center justify-center h-screen overflow-hidden relative"><canvas id="c"></canvas>
+LOGIN = """<!DOCTYPE html><html><head>""" + COMMON_HEAD + """</head><body class="flex items-center justify-center h-screen overflow-hidden relative"><canvas id="c"></canvas>
 <div class="relative z-10 w-[420px] glass rounded-[28px] p-9 text-center shadow-[0_0_60px_rgba(34,211,238,0.2)]">
   <div class="w-16 h-16 bg-gradient-to-r from-cyan-400 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_25px_#22d3ee]">👾</div>
   <h1 class="font-black text-2xl mt-5 text-white bg-gradient-to-r from-cyan-300 to-indigo-400 bg-clip-text text-transparent">HSL CORP</h1>
@@ -249,12 +248,12 @@ LOGIN = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}</head><body class="flex ite
     <img src="https://www.svgrepo.com/show/475656/google-color.svg" width=20> Continue with Google
   </a>
 </div>
-{CURSOR_SCRIPT}
+""" + CURSOR_SCRIPT + """
 </body></html>"""
 
-DASHBOARD_HTML = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}
+DASHBOARD_HTML = """<!DOCTYPE html><html><head>""" + COMMON_HEAD + """
 <style>
-  .side-active{{ background: rgba(34,211,238,0.15); border: 1px solid rgba(34,211,238,0.4); color: #22d3ee !important; font-weight: bold; }}
+  .side-active{ background: rgba(34,211,238,0.15); border: 1px solid rgba(34,211,238,0.4); color: #22d3ee !important; font-weight: bold; }
 </style>
 </head>
 <body class="flex h-screen text-white overflow-hidden relative"><canvas id="c"></canvas>
@@ -268,22 +267,22 @@ DASHBOARD_HTML = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}
   <div class="p-3 space-y-1 text-xs" id="sidebar">
     <button onclick="showTab('overview')" id="btn-overview" class="side-active w-full text-left rounded-xl px-4 py-2.5 transition">🏠 Overview</button>
     <button onclick="showTab('applications')" id="btn-applications" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">📦 Applications</button>
-    <button onclick="showTab('tool_users')" id="btn-tool_users" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">👤 Users ({{{{tool_user_count}}}}/{{{{limit_text}}}})</button>
+    <button onclick="showTab('tool_users')" id="btn-tool_users" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">👤 Users ({{tool_user_count}}/{{limit_text}})</button>
     <button onclick="showTab('keys')" id="btn-keys" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔑 License Keys</button>
     <button onclick="showTab('integrate')" id="btn-integrate" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">🔌 Anti-Crack Integration</button>
     <button onclick="showTab('billing')" id="btn-billing" class="w-full text-left text-zinc-400 hover:text-white px-4 py-2.5 transition">💎 Billing / Upgrade</button>
   </div>
   
   <div class="mt-auto p-4 border-t border-white/10 flex items-center gap-3 bg-black/40">
-    <img src="https://ui-avatars.com/api/?name={{{{name}}}}&background=22d3ee&color=fff" class="w-8 h-8 rounded-full border border-cyan-400/40">
-    <div><p class="text-[11px] font-bold truncate w-[110px]">{{{{email}}}}</p><p class="text-[9px] {{{'{'}plan_color{'}'}}} font-bold">{{{{plan_text}}}}</p></div>
+    <img src="https://ui-avatars.com/api/?name={{name}}&background=22d3ee&color=fff" class="w-8 h-8 rounded-full border border-cyan-400/40">
+    <div><p class="text-[11px] font-bold truncate w-[110px]">{{email}}</p><p class="text-[9px] {{plan_color}} font-bold">{{plan_text}}</p></div>
     <a href="/logout" class="ml-auto text-[11px] text-red-400 hover:text-red-300 font-semibold">Logout</a>
   </div>
 </div>
 
 <div class="flex-1 overflow-y-auto relative z-10">
   <div class="h-14 bg-black/40 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-8">
-    <p class="text-xs font-semibold tracking-wider text-cyan-300">HSL CONSOLE - {{{{plan_text}}}} PLAN</p>
+    <p class="text-xs font-semibold tracking-wider text-cyan-300">HSL CONSOLE - {{plan_text}} PLAN</p>
     <button onclick="showTab('billing')" class="text-xs bg-gradient-to-r from-cyan-400 to-indigo-600 hover:opacity-90 text-white px-5 py-2 rounded-full font-bold shadow-[0_0_15px_rgba(34,211,238,0.4)] transition">Upgrade to Unlimited</button>
   </div>
   
@@ -291,9 +290,9 @@ DASHBOARD_HTML = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}
     <div id="tab-overview">
       <h1 class="text-2xl font-black">Dashboard Overview</h1>
       <div class="mt-6 grid grid-cols-[1.3fr_1fr_0.7fr] gap-4">
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-cyan-400 tracking-wider">ACTIVE APPLICATION</p><select id="appSelect" onchange="selectApp(this.value)" class="bg-black/80 border border-white/20 rounded-xl px-3 py-2.5 text-xs mt-3 w-full font-semibold focus:outline-none focus:border-cyan-400">{{{{app_options}}}}</select></div>
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-zinc-400 tracking-wider">MASTER APP TOKEN</p><div class="mt-3 flex justify-between items-center bg-black/80 rounded-xl px-3 py-2 border border-white/10"><p id="tokenDisplay" class="text-xs font-mono text-zinc-300 truncate">{{{{active_token}}}}</p><button onclick="copyToken()" class="text-[10px] bg-gradient-to-r from-cyan-400 to-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:scale-105 transition">Copy</button></div></div>
-        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-zinc-400 tracking-wider">PLAN LIMIT</p><p class="text-xs font-bold mt-3">{{{{tool_user_count}}}} / {{{{limit_text}}}} Used</p><div class="w-full bg-zinc-800 h-2 mt-3 rounded-full overflow-hidden"><div class="bg-gradient-to-r from-cyan-400 to-indigo-600 h-2 rounded-full" style="width:{{{{percent}}}}%"></div></div></div>
+        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-cyan-400 tracking-wider">ACTIVE APPLICATION</p><select id="appSelect" onchange="selectApp(this.value)" class="bg-black/80 border border-white/20 rounded-xl px-3 py-2.5 text-xs mt-3 w-full font-semibold focus:outline-none focus:border-cyan-400">{{app_options}}</select></div>
+        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-zinc-400 tracking-wider">MASTER APP TOKEN</p><div class="mt-3 flex justify-between items-center bg-black/80 rounded-xl px-3 py-2 border border-white/10"><p id="tokenDisplay" class="text-xs font-mono text-zinc-300 truncate">{{active_token}}</p><button onclick="copyToken()" class="text-[10px] bg-gradient-to-r from-cyan-400 to-indigo-600 px-3 py-1.5 rounded-lg font-bold hover:scale-105 transition">Copy</button></div></div>
+        <div class="glass-card rounded-2xl p-5"><p class="text-[10px] font-bold text-zinc-400 tracking-wider">PLAN LIMIT</p><p class="text-xs font-bold mt-3">{{tool_user_count}} / {{limit_text}} Used</p><div class="w-full bg-zinc-800 h-2 mt-3 rounded-full overflow-hidden"><div class="bg-gradient-to-r from-cyan-400 to-indigo-600 h-2 rounded-full" style="width:{{percent}}%"></div></div></div>
       </div>
       
       <div class="mt-6 glass-card rounded-2xl p-7">
@@ -306,18 +305,18 @@ DASHBOARD_HTML = f"""<!DOCTYPE html><html><head>{COMMON_HEAD}
       </div>
     </div>
 
-    <div id="tab-applications" class="hidden"><h1 class="text-2xl font-black">Applications</h1><div class="glass-card mt-6 rounded-2xl p-7"><div class="space-y-3 mb-6">{{{{app_list_html}}}}</div><div class="border-t border-white/10 pt-5"><p class="text-base font-bold">+ Create New App</p><input id="newAppName" placeholder="App Name" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"><button onclick="createApp()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create Application</button></div></div></div>
+    <div id="tab-applications" class="hidden"><h1 class="text-2xl font-black">Applications</h1><div class="glass-card mt-6 rounded-2xl p-7"><div class="space-y-3 mb-6">{{app_list_html}}</div><div class="border-t border-white/10 pt-5"><p class="text-base font-bold">+ Create New App</p><input id="newAppName" placeholder="App Name" class="mt-3 w-full bg-black/80 border border-white/15 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"><button onclick="createApp()" class="mt-4 w-full bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(34,211,238,0.4)] transition">Create Application</button></div></div></div>
 
-    <div id="tab-tool_users" class="hidden"><h1 class="text-2xl font-black">Username / Pass Users ({{{{tool_user_count}}}}/{{{{limit_text}}}})</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{{{tool_users_list_html}}}}</div></div></div>
+    <div id="tab-tool_users" class="hidden"><h1 class="text-2xl font-black">Username / Pass Users ({{tool_user_count}}/{{limit_text}})</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{tool_users_list_html}}</div></div></div>
 
-    <div id="tab-keys" class="hidden"><h1 class="text-2xl font-black">License Keys</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{{{keys_list_html}}}}</div></div></div>
+    <div id="tab-keys" class="hidden"><h1 class="text-2xl font-black">License Keys</h1><div class="glass-card mt-6 rounded-2xl p-6"><div class="space-y-3 text-xs font-mono">{{keys_list_html}}</div></div></div>
 
     <div id="tab-integrate" class="hidden"><h1 class="text-2xl font-black">Secure Client Integration Code</h1><div class="glass-card mt-6 rounded-2xl p-7">
       <p class="text-xs font-bold text-cyan-300">Encrypted Payload Verification Script (Anti-Fiddler/Anti-HTTP Debugger)</p>
       <pre class="mt-4 bg-black/90 border border-white/10 rounded-xl p-5 text-xs font-mono overflow-x-auto text-green-400 leading-relaxed">
-import requests, subprocess, hashlib, hmac
+import requests, subprocess, hashlib
 
-MY_APP_TOKEN = "{{{{active_token}}}}"
+MY_APP_TOKEN = "{{active_token}}"
 AUTH_URL = "https://YOUR-DOMAIN.com/api/auth_login"
 
 def get_hwid():
@@ -329,50 +328,103 @@ def get_hwid():
 
 def secure_login(username, password):
     hwid = get_hwid()
-    # Payload Verification Sig
-    raw_sig = f"{{username}}:{{hwid}}:{{MY_APP_TOKEN}}"
+    raw_sig = f"{username}:{hwid}:{MY_APP_TOKEN}"
     sig = hashlib.sha256(raw_sig.encode()).hexdigest()
     
-    payload = {{
+    payload = {
         "username": username,
         "password": password,
         "hwid": hwid,
         "token": MY_APP_TOKEN,
         "sig": sig
-    }}
+    }
     
     try:
         res = requests.post(AUTH_URL, json=payload, timeout=10)
         return res.json()
     except Exception as e:
-        return {{"status": "error", "message": "Connection Tampered"}}
+        return {"status": "error", "message": "Connection Tampered"}
 </pre>
     </div></div>
 
     <div id="tab-billing" class="hidden"><h1 class="text-2xl font-black">Billing / Plans</h1>
       <div class="grid grid-cols-2 gap-6 mt-6">
-        <div class="glass-card rounded-2xl p-7"><p class="font-bold text-sm text-zinc-300">FREE PLAN</p><p class="text-4xl font-black mt-2">₹0</p><p class="text-xs text-zinc-400 mt-3 leading-relaxed">✓ 10 Users / Keys Only<br>✓ 1 Application<br>✓ HWID Lock</p><p class="mt-6 text-xs bg-zinc-800/80 rounded-full px-4 py-1.5 inline-block font-semibold">Current: {{{{plan_text}}}}</p></div>
+        <div class="glass-card rounded-2xl p-7"><p class="font-bold text-sm text-zinc-300">FREE PLAN</p><p class="text-4xl font-black mt-2">₹0</p><p class="text-xs text-zinc-400 mt-3 leading-relaxed">✓ 10 Users / Keys Only<br>✓ 1 Application<br>✓ HWID Lock</p><p class="mt-6 text-xs bg-zinc-800/80 rounded-full px-4 py-1.5 inline-block font-semibold">Current: {{plan_text}}</p></div>
         <div class="glass-card rounded-2xl p-7 border-cyan-400/50 bg-cyan-500/10"><p class="font-bold text-sm text-cyan-400">PRO UNLIMITED</p><p class="text-4xl font-black mt-2">₹499</p><p class="text-xs text-zinc-200 mt-3 leading-relaxed">✓ Unlimited Users<br>✓ Unlimited Apps<br>✓ Unlimited Keys<br>✓ Anti-Crack Engine</p><a href="https://wa.me/919999999999" target="_blank" class="mt-6 block text-center bg-gradient-to-r from-cyan-400 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-[0_0_25px_rgba(34,211,238,0.5)] transition">Buy on WhatsApp</a></div>
       </div>
     </div>
   </div>
 </div>
-{CURSOR_SCRIPT}
+""" + CURSOR_SCRIPT + """
 <script>
-function showTab(name){{document.querySelectorAll('[id^="tab-"]').forEach(d=>d.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('#sidebar button').forEach(b=>{{b.classList.remove('side-active');b.classList.add('text-zinc-400')}});let btn=document.getElementById('btn-'+name);if(btn){{btn.classList.add('side-active');btn.classList.remove('text-zinc-400')}}}}
-async function createApp(){{let name=document.getElementById('newAppName').value.trim();if(!name){{alert('Enter Name!');return;} }let res=await fetch('/api/create_app',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{name:name}})}});let data=await res.json();if(data.error){{alert(data.error);} else{{alert('App Created! Token: '+data.token);location.reload();}}}}
-function copyToken(){{let t=document.getElementById('tokenDisplay').innerText;navigator.clipboard.writeText(t);alert('Copied: '+t);}}
-function selectApp(token){{document.getElementById('tokenDisplay').innerText=token;}}
-async function createUser(){{let u=document.getElementById('newUsername').value.trim();let p=document.getElementById('newPassword').value.trim();let token=document.getElementById('tokenDisplay').innerText;if(!u||!p){{alert('Fill fields!');return;} }let res=await fetch('/api/create_user',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:u,password:p,app_token:token}})}});let data=await res.json();alert(data.message);location.reload();}}
-async function deleteUser(username){{if(!confirm('Delete '+username+'?'))return;let res=await fetch('/api/delete_user',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:username}})}});let data=await res.json();alert(data.message);location.reload();}}
-async function resetHwid(username){{let res=await fetch('/api/reset_hwid',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:username}})}});let data=await res.json();alert(data.message);location.reload();}}
-async function toggleBan(username){{let res=await fetch('/api/toggle_ban',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:username}})}});let data=await res.json();alert(data.message);location.reload();}}
-async function editUser(oldU, oldP){{
+function showTab(name){
+    document.querySelectorAll('[id^="tab-"]').forEach(d=>d.classList.add('hidden'));
+    document.getElementById('tab-'+name).classList.remove('hidden');
+    document.querySelectorAll('#sidebar button').forEach(b=>{b.classList.remove('side-active');b.classList.add('text-zinc-400')});
+    let btn=document.getElementById('btn-'+name);
+    if(btn){btn.classList.add('side-active');btn.classList.remove('text-zinc-400')}
+}
+
+async function createApp(){
+    let name=document.getElementById('newAppName').value.trim();
+    if(!name){alert('Enter Name!');return;}
+    let res=await fetch('/api/create_app',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})});
+    let data=await res.json();
+    if(data.error){alert(data.error);} 
+    else{alert('App Created! Token: '+data.token);location.reload();}
+}
+
+function copyToken(){
+    let t=document.getElementById('tokenDisplay').innerText;
+    navigator.clipboard.writeText(t);
+    alert('Copied: '+t);
+}
+
+function selectApp(token){
+    document.getElementById('tokenDisplay').innerText=token;
+}
+
+async function createUser(){
+    let u=document.getElementById('newUsername').value.trim();
+    let p=document.getElementById('newPassword').value.trim();
+    let token=document.getElementById('tokenDisplay').innerText;
+    if(!u||!p){alert('Fill fields!');return;}
+    let res=await fetch('/api/create_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,app_token:token})});
+    let data=await res.json();
+    alert(data.message);
+    location.reload();
+}
+
+async function deleteUser(username){
+    if(!confirm('Delete '+username+'?'))return;
+    let res=await fetch('/api/delete_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username})});
+    let data=await res.json();
+    alert(data.message);
+    location.reload();
+}
+
+async function resetHwid(username){
+    let res=await fetch('/api/reset_hwid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username})});
+    let data=await res.json();
+    alert(data.message);
+    location.reload();
+}
+
+async function toggleBan(username){
+    let res=await fetch('/api/toggle_ban',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username})});
+    let data=await res.json();
+    alert(data.message);
+    location.reload();
+}
+
+async function editUser(oldU, oldP){
     let newU = prompt("New Username:", oldU); if(newU===null) return;
     let newP = prompt("New Password:", oldP); if(newP===null) return;
-    let res=await fetch('/api/edit_user',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{old_username:oldU, new_username:newU.trim(), new_password:newP.trim()}})}});
-    let data=await res.json(); alert(data.message); location.reload();
-}}
+    let res=await fetch('/api/edit_user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_username:oldU, new_username:newU.trim(), new_password:newP.trim()})});
+    let data=await res.json();
+    alert(data.message);
+    location.reload();
+}
 </script>
 </body></html>
 """
@@ -563,7 +615,7 @@ def api_edit_user():
 # ----------------- ANTI-CRACK API ENDPOINTS ----------------- #
 
 @app.route("/api/auth_login", methods=["POST"])
-@rate_limit(max_requests=10, window_seconds=60) # Anti Brute-force Limit
+@rate_limit(max_requests=10, window_seconds=60)
 def api_auth_login():
     data = request.json or {}
     
@@ -576,7 +628,6 @@ def api_auth_login():
     if not username or not password or not token or not hwid:
         return jsonify({"status": "invalid", "message": "Malformed request parameters"}), 400
 
-    # Payload Signature Audit
     expected_sig = hashlib.sha256(f"{username}:{hwid}:{token}".encode()).hexdigest()
     if client_sig and client_sig != expected_sig:
         return jsonify({"status": "tampered", "message": "Request payload tampered!"}), 403
@@ -604,4 +655,4 @@ def logout():
     return redirect("/")
 
 if __name__ == "__main__":
-    app.run(port=5000, debug=False) # Production Mode Debug False
+    app.run(port=5000, debug=False)
