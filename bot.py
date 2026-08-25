@@ -128,7 +128,7 @@ async def create_s(
         )
 
         # Dashboard se copy karke yahan apna App Token daalein
-        APP_TOKEN = "HSL_K68EWHIKXGS6NBRZ..."
+        APP_TOKEN = "HSL_K68EWHIKXG56NBRZHE26"
 
         payload = {
             "username": username.strip(),
