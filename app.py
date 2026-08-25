@@ -592,7 +592,7 @@ def secure_login(username, password):
         <div class="glass-card rounded-2xl p-7">
           <p class="font-bold text-sm text-zinc-300">FREE PLAN</p>
           <p class="text-4xl font-black mt-2">₹0</p>
-          <p class="text-xs text-zinc-400 mt-3 leading-relaxed">✓ 10 Users / Keys Only<br>✓ 1 Application<br>✓ HWID Lock</p>
+          <p class="text-xs text-zinc-400 mt-3 leading-relaxed">✓ 10 Users / Keys Only<br>✓ 2 Applications (With Delete Option)<br>✓ HWID Lock</p>
           <p class="mt-6 text-xs bg-zinc-800/80 rounded-full px-4 py-1.5 inline-block font-semibold">Current: {{plan_text}}</p>
         </div>
         <div class="glass-card rounded-2xl p-7 border-cyan-400/50 bg-cyan-500/10">
@@ -641,6 +641,18 @@ async function createApp() {
         alert('App Created! Token: ' + data.token);
         location.reload();
     }
+}
+
+async function deleteApp(token) {
+    if(!confirm('Are you sure you want to delete this application? Associated users might also be affected.')) return;
+    let res = await fetch('/api/delete_app', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token: token})
+    });
+    let data = await res.json();
+    alert(data.message);
+    location.reload();
 }
 
 function copyToken() {
@@ -784,7 +796,13 @@ def dash():
         ])
         active_token = apps[0][2]
         app_list_html = "".join([
-            f"<div class='bg-black/80 border border-white/10 rounded-xl px-4 py-3 flex justify-between items-center'><span>{a[1]}</span><span class='text-xs text-zinc-500 font-mono'>{a[2][:20]}...</span></div>"
+            f"""<div class='bg-black/80 border border-white/10 rounded-xl px-4 py-3 flex justify-between items-center mb-2'>
+                <div>
+                    <span class='font-bold text-white'>{a[1]}</span><br>
+                    <span class='text-xs text-zinc-500 font-mono'>{a[2][:25]}...</span>
+                </div>
+                <button onclick="deleteApp('{a[2]}')" class='bg-red-900/50 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs hover:bg-red-800 transition text-red-300 font-semibold'>Delete App</button>
+            </div>"""
             for a in apps
         ])
         
@@ -871,8 +889,9 @@ def api_create_app():
     email = session["user"]["email"]
     apps = db("SELECT COUNT(*) FROM apps WHERE owner_email=?", (email,), True)
     
-    if email not in PAID_USERS and apps[0][0] >= 1:
-        return jsonify({"error": "Free Plan limit reached."})
+    # Free Plan limit set to 2 Applications max
+    if email not in PAID_USERS and apps[0][0] >= 2:
+        return jsonify({"error": "Free Plan limit reached. Max 2 applications allowed. Delete an existing app to create a new one."})
         
     name = request.json.get("name", "").strip()
     if not name:
@@ -887,6 +906,24 @@ def api_create_app():
     )
     
     return jsonify({"token": token})
+
+@app.route("/api/delete_app", methods=["POST"])
+def api_delete_app():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    email = session["user"]["email"]
+    token = request.json.get("token")
+    
+    # Verify ownership before deleting
+    app_check = db("SELECT * FROM apps WHERE token=? AND owner_email=?", (token, email), True)
+    if not app_check:
+        return jsonify({"message": "App not found or unauthorized!"})
+        
+    db("DELETE FROM apps WHERE token=?", (token,))
+    db("DELETE FROM tool_users WHERE app_token=?", (token,))
+    
+    return jsonify({"message": "Application deleted successfully."})
 
 @app.route("/api/create_user", methods=["POST"])
 def api_create_user():
