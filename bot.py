@@ -97,7 +97,6 @@ async def list_s(interaction: discord.Interaction):
             return await interaction.response.send_message(embed=stylish_embed("❌ Denied", "No Access!", 0xFF0000), ephemeral=True)
         await interaction.response.defer()
         
-        # Railway API se data lene ke liye fix
         res = requests.get(f"{RAILWAY_URL}/api/bot/users", timeout=10)
         data = res.json()
         users = data.get("users", [])
@@ -139,4 +138,79 @@ async def create_s(interaction: discord.Interaction, username: str, password: st
         data = response.json()
 
         if response.status_code == 200 and "User Created" in data.get("message", ""):
-            await interaction.followup.send(embed=stylish_embed("✅ Created", f"```User: {username}\nPass: {password}
+            await interaction.followup.send(embed=stylish_embed("✅ Created", f"```User: {username}\nPass: {password}```", 0x00FF99))
+        else:
+            msg = data.get("message", "User creation failed!")
+            await interaction.followup.send(embed=stylish_embed("❌ Failed", msg, 0xFF0000))
+
+    except Exception as e:
+        print(f"CREATE ERROR: {e}")
+        if interaction.response.is_done():
+            await interaction.followup.send(embed=stylish_embed("❌ Error", str(e), 0xFF0000))
+        else:
+            await interaction.response.send_message(embed=stylish_embed("❌ Error", str(e), 0xFF0000), ephemeral=True)
+
+@bot.tree.command(name="ban", description="🔨 Ban user")
+async def ban_s(interaction: discord.Interaction, username: str):
+    await interaction.response.defer()
+    if not is_owner_or_whitelisted(interaction.user.id, "ban"):
+        return await interaction.followup.send(embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True)
+
+    try:
+        res = requests.post(f"{RAILWAY_URL}/api/bot/toggle_ban", json={"username": username.strip()}, timeout=10)
+        msg = res.json().get("message", "Updated")
+        await interaction.followup.send(embed=stylish_embed("🔨 Ban Toggle", f"`{msg}`", 0xFF0000))
+    except Exception as e:
+        await interaction.followup.send(embed=stylish_embed("❌ Error", str(e), 0xFF0000))
+
+@bot.tree.command(name="unban", description="✅ Unban user")
+async def unban_s(interaction: discord.Interaction, username: str):
+    await interaction.response.defer()
+    if not is_owner_or_whitelisted(interaction.user.id, "unban"):
+        return await interaction.followup.send(embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True)
+
+    try:
+        res = requests.post(f"{RAILWAY_URL}/api/bot/toggle_ban", json={"username": username.strip()}, timeout=10)
+        msg = res.json().get("message", "Updated")
+        await interaction.followup.send(embed=stylish_embed("✅ Unban Toggle", f"`{msg}`", 0x00FF99))
+    except Exception as e:
+        await interaction.followup.send(embed=stylish_embed("❌ Error", str(e), 0xFF0000))
+
+@bot.tree.command(name="delete", description="🗑️ Delete user")
+async def delete_s(interaction: discord.Interaction, username: str):
+    await interaction.response.defer()
+    if not is_owner_or_whitelisted(interaction.user.id, "delete"):
+        return await interaction.followup.send(embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True)
+
+    try:
+        res = requests.post(f"{RAILWAY_URL}/api/bot/delete_user", json={"username": username.strip()}, timeout=10)
+        msg = res.json().get("message", "Deleted")
+        await interaction.followup.send(embed=stylish_embed("🗑️ Deleted", f"`{username}` deleted from Dashboard!"))
+    except Exception as e:
+        await interaction.followup.send(embed=stylish_embed("❌ Error", str(e), 0xFF0000))
+
+@bot.tree.command(name="resethwid", description="♻️ Reset HWID")
+async def reset_s(interaction: discord.Interaction, username: str):
+    await interaction.response.defer()
+    if not is_owner_or_whitelisted(interaction.user.id, "resethwid"):
+        return await interaction.followup.send(embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True)
+
+    try:
+        res = requests.post(f"{RAILWAY_URL}/api/bot/reset_hwid", json={"username": username.strip()}, timeout=10)
+        msg = res.json().get("message", "HWID Reset Successful")
+        await interaction.followup.send(embed=stylish_embed("♻️ HWID Reset", f"**{username}** - {msg}", 0x5865F2))
+    except Exception as e:
+        await interaction.followup.send(embed=stylish_embed("❌ Error", str(e), 0xFF0000))
+
+@bot.tree.command(name="apps", description="📦 Apps list")
+async def apps_s(interaction: discord.Interaction):
+    try:
+        if not is_owner_or_whitelisted(interaction.user.id, "apps"):
+            return await interaction.response.send_message(embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True)
+        await interaction.response.defer()
+
+        await interaction.followup.send(embed=stylish_embed("📦 Application Info", f"Manage your apps & tokens directly at:\n{RAILWAY_URL}/dashboard", 0x5865F2))
+    except Exception as e:
+        await interaction.followup.send(f"⚠️ Error: {e}", ephemeral=True)
+
+bot.run(BOT_TOKEN)
