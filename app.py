@@ -1246,7 +1246,57 @@ def api_auth_login():
                 "status": "hwid_mismatch", 
                 "message": "Hardware mismatch detected"
             })
+# ==========================================
+# DISCORD BOT INTEGRATION API ENDPOINTS
+# ==========================================
 
+@app.route("/api/bot/users", methods=["GET"])
+def api_bot_get_users():
+    tool_users = db("SELECT username, status, hwid, app_token FROM tool_users", fetch=True)
+    users_list = []
+    for u in tool_users:
+        users_list.append({
+            "username": u[0],
+            "status": u[1],
+            "hwid": u[2] if u[2] else "Not Bound",
+            "app_token": u[3]
+        })
+    return jsonify({"status": "success", "users": users_list})
+
+@app.route("/api/bot/delete_user", methods=["POST"])
+def api_bot_delete_user():
+    data = request.json or {}
+    username = data.get("username")
+    if not username:
+        return jsonify({"status": "error", "message": "Username missing"}), 400
+    
+    db("DELETE FROM tool_users WHERE username=?", (username,))
+    return jsonify({"status": "success", "message": f"User {username} deleted successfully."})
+
+@app.route("/api/bot/toggle_ban", methods=["POST"])
+def api_bot_toggle_ban():
+    data = request.json or {}
+    username = data.get("username")
+    if not username:
+        return jsonify({"status": "error", "message": "Username missing"}), 400
+        
+    res = db("SELECT status FROM tool_users WHERE username=?", (username,), fetch=True)
+    if not res:
+        return jsonify({"status": "error", "message": "User not found"}), 404
+        
+    new_status = "banned" if res[0][0] == "active" else "active"
+    db("UPDATE tool_users SET status=? WHERE username=?", (new_status, username))
+    return jsonify({"status": "success", "message": f"User {username} status changed to {new_status}."})
+
+@app.route("/api/bot/reset_hwid", methods=["POST"])
+def api_bot_reset_hwid():
+    data = request.json or {}
+    username = data.get("username")
+    if not username:
+        return jsonify({"status": "error", "message": "Username missing"}), 400
+        
+    db("UPDATE tool_users SET hwid=NULL, status='active' WHERE username=?", (username,))
+    return jsonify({"status": "success", "message": f"HWID reset successfully for {username}."})
 @app.route("/logout")
 def logout():
     session.clear()
