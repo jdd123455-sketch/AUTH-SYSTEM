@@ -69,14 +69,14 @@ async def help_s(interaction: discord.Interaction):
 # ========== WHITELIST ==========
 @bot.tree.command(name="whitelist_add", description="➕ Access do")
 async def w_add(interaction: discord.Interaction, member: discord.Member, command_name: str):
-    if interaction.user.id!= OWNER_ID:
+    if interaction.user.id != OWNER_ID:
         return await interaction.response.send_message(embed=stylish_embed("❌ No Access", "Sirf Owner!", 0xFF0000), ephemeral=True)
     db("INSERT INTO discord_whitelist (user_id, command) VALUES (?,?)", (str(member.id), command_name.lower()))
     await interaction.response.send_message(embed=stylish_embed("✅ Added", f"{member.mention} → `{command_name}` 🟢", 0x00FF88))
 
 @bot.tree.command(name="whitelist_remove", description="➖ Access hatao")
 async def w_rem(interaction: discord.Interaction, member: discord.Member, command_name: str):
-    if interaction.user.id!= OWNER_ID:
+    if interaction.user.id != OWNER_ID:
         return await interaction.response.send_message(embed=stylish_embed("❌ No Access", "Sirf Owner!", 0xFF0000), ephemeral=True)
     db("DELETE FROM discord_whitelist WHERE user_id=? AND command=?", (str(member.id), command_name.lower()))
     await interaction.response.send_message(embed=stylish_embed("🗑️ Removed", f"{member.mention} ka `{command_name}` hata diya!", 0xFF5050))
@@ -96,13 +96,21 @@ async def list_s(interaction: discord.Interaction):
         if not is_owner_or_whitelisted(interaction.user.id, "list"):
             return await interaction.response.send_message(embed=stylish_embed("❌ Denied", "No Access!", 0xFF0000), ephemeral=True)
         await interaction.response.defer()
-        users = db("SELECT username, status, hwid FROM tool_users", fetch=True)
-        if not users: return await interaction.followup.send(embed=stylish_embed("📭 No Users", "Database khali hai"))
+        
+        # Railway API se data lene ke liye fix
+        res = requests.get(f"{RAILWAY_URL}/api/bot/users", timeout=10)
+        data = res.json()
+        users = data.get("users", [])
+        
+        if not users: 
+            return await interaction.followup.send(embed=stylish_embed("📭 No Users", "Database khali hai"))
+        
         desc = ""
         for u in users:
-            emoji = "🟢" if u[1]=='active' else "🔴"
-            hwid = (u[2][:8]+"...") if u[2] else "`No HWID`"
-            desc += f"{emoji} `{u[0]}` | {u[1]} | {hwid}\n"
+            emoji = "🟢" if u['status'] == 'active' else "🔴"
+            hwid = (u['hwid'][:8]+"...") if u['hwid'] and u['hwid'] != "Not Bound" else "`No HWID`"
+            desc += f"{emoji} `{u['username']}` | {u['status']} | {hwid}\n"
+            
         await interaction.followup.send(embed=stylish_embed(f"👥 Total: {len(users)}", desc[:4000]))
     except Exception as e:
         print(e)
@@ -111,23 +119,14 @@ async def list_s(interaction: discord.Interaction):
         else: await interaction.response.send_message(msg, ephemeral=True)
 
 @bot.tree.command(name="create", description="➕ New user")
-async def create_s(
-    interaction: discord.Interaction, username: str, password: str
-):
+async def create_s(interaction: discord.Interaction, username: str, password: str):
     try:
         if not is_owner_or_whitelisted(interaction.user.id, "create"):
-            return await interaction.response.send_message(
-                embed=stylish_embed("❌ Denied", "No Access!"), ephemeral=True
-            )
+            return await interaction.response.send_message(embed=stylish_embed("❌ Denied", "No Access!"), ephemeral=True)
 
         await interaction.response.defer()
 
-        # Railway Flask API URL
-        API_URL = (
-            "https://hsl-corp-production-9678.up.railway.app/api/create_user"
-        )
-
-        # Dashboard se copy karke yahan apna App Token daalein
+        API_URL = f"{RAILWAY_URL}/api/create_user"
         APP_TOKEN = "HSL_K68EWHIKXG56NBRZHE26"
 
         payload = {
@@ -136,159 +135,8 @@ async def create_s(
             "app_token": APP_TOKEN,
         }
 
-        # Railway Website to API request
         response = requests.post(API_URL, json=payload, timeout=10)
         data = response.json()
 
-        if response.status_code == 200 and "User Created" in data.get(
-            "message", ""
-        ):
-            await interaction.followup.send(
-                embed=stylish_embed(
-                    "✅ Created",
-                    f"```User: {username}\nPass: {password}```",
-                    0x00FF99,
-                )
-            )
-        else:
-            msg = data.get("message", "User creation failed!")
-            await interaction.followup.send(
-                embed=stylish_embed("❌ Failed", msg, 0xFF0000)
-            )
-
-    except Exception as e:
-        print(f"CREATE ERROR: {e}")
-        if interaction.response.is_done():
-            await interaction.followup.send(
-                embed=stylish_embed("❌ Error", str(e), 0xFF0000)
-            )
-        else:
-            await interaction.response.send_message(
-                embed=stylish_embed("❌ Error", str(e), 0xFF0000),
-                ephemeral=True,
-            )
-@bot.tree.command(name="ban", description="🔨 Ban user")
-async def ban_s(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    if not is_owner_or_whitelisted(interaction.user.id, "ban"):
-        return await interaction.followup.send(
-            embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True
-        )
-
-    try:
-        res = requests.post(
-            f"{RAILWAY_URL}/api/toggle_ban",
-            json={"username": username.strip()},
-            timeout=10,
-        )
-        msg = res.json().get("message", "Updated")
-        await interaction.followup.send(
-            embed=stylish_embed("🔨 Ban Toggle", f"`{msg}`", 0xFF0000)
-        )
-    except Exception as e:
-        await interaction.followup.send(
-            embed=stylish_embed("❌ Error", str(e), 0xFF0000)
-        )
-
-
-# ========== UNBAN USER ==========
-@bot.tree.command(name="unban", description="✅ Unban user")
-async def unban_s(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    if not is_owner_or_whitelisted(interaction.user.id, "unban"):
-        return await interaction.followup.send(
-            embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True
-        )
-
-    try:
-        res = requests.post(
-            f"{RAILWAY_URL}/api/toggle_ban",
-            json={"username": username.strip()},
-            timeout=10,
-        )
-        msg = res.json().get("message", "Updated")
-        await interaction.followup.send(
-            embed=stylish_embed("✅ Unban Toggle", f"`{msg}`", 0x00FF99)
-        )
-    except Exception as e:
-        await interaction.followup.send(
-            embed=stylish_embed("❌ Error", str(e), 0xFF0000)
-        )
-
-
-# ========== DELETE USER ==========
-@bot.tree.command(name="delete", description="🗑️ Delete user")
-async def delete_s(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    if not is_owner_or_whitelisted(interaction.user.id, "delete"):
-        return await interaction.followup.send(
-            embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True
-        )
-
-    try:
-        res = requests.post(
-            f"{RAILWAY_URL}/api/delete_user",
-            json={"username": username.strip()},
-            timeout=10,
-        )
-        msg = res.json().get("message", "Deleted")
-        await interaction.followup.send(
-            embed=stylish_embed("🗑️ Deleted", f"`{username}` deleted from Dashboard!")
-        )
-    except Exception as e:
-        await interaction.followup.send(
-            embed=stylish_embed("❌ Error", str(e), 0xFF0000)
-        )
-
-
-# ========== RESET HWID ==========
-@bot.tree.command(name="resethwid", description="♻️ Reset HWID")
-async def reset_s(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    if not is_owner_or_whitelisted(interaction.user.id, "resethwid"):
-        return await interaction.followup.send(
-            embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True
-        )
-
-    try:
-        res = requests.post(
-            f"{RAILWAY_URL}/api/reset_hwid",
-            json={"username": username.strip()},
-            timeout=10,
-        )
-        msg = res.json().get("message", "HWID Reset Successful")
-        await interaction.followup.send(
-            embed=stylish_embed(
-                "♻️ HWID Reset",
-                f"**{username}** - {msg}",
-                0x5865F2,
-            )
-        )
-    except Exception as e:
-        await interaction.followup.send(
-            embed=stylish_embed("❌ Error", str(e), 0xFF0000)
-        )
-
-
-# ========== APPS LIST ==========
-@bot.tree.command(name="apps", description="📦 Apps list")
-async def apps_s(interaction: discord.Interaction):
-    try:
-        if not is_owner_or_whitelisted(interaction.user.id, "apps"):
-            return await interaction.response.send_message(
-                embed=stylish_embed("❌ Denied", "No Access"), ephemeral=True
-            )
-        await interaction.response.defer()
-
-        # Web Dashboard App Info Notice
-        await interaction.followup.send(
-            embed=stylish_embed(
-                "📦 Application Info",
-                f"Manage your apps & tokens directly at:\n{RAILWAY_URL}/dashboard",
-                0x5865F2,
-            )
-        )
-    except Exception as e:
-        await interaction.followup.send(f"⚠️ Error: {e}", ephemeral=True)
-
-bot.run(BOT_TOKEN)
+        if response.status_code == 200 and "User Created" in data.get("message", ""):
+            await interaction.followup.send(embed=stylish_embed("✅ Created", f"```User: {username}\nPass: {password}
